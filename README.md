@@ -1,54 +1,73 @@
 # Super API Peer Lab
 
-A static GitHub-Pages-ready browser capability lab with two peer roles connected over a WebRTC DataChannel.
+A GitHub-Pages-ready browser Web API capability lab with WebRTC peer control.
 
-## What it does
+## Current scope
 
-- Detects a broad set of browser Web APIs and shows whether each API surface is exposed by the current browser.
-- Provides working local demos for many APIs, including camera, microphone, screen capture, torch where exposed, geolocation, clipboard, notifications, wake lock, Web Share, File System Access, OPFS, fullscreen, Picture-in-Picture, vibration, battery/network information, Bluetooth, USB, Serial, HID, NFC, MIDI, gamepads, Web Audio, speech synthesis, Web Crypto, storage, Cache Storage, IndexedDB, Fetch, Workers, BroadcastChannel, WebGL, WebGPU, Compression Streams, Permissions, Service Workers, orientation, Contact Picker, Payment Request capability checking, WebAuthn capability checking, Performance APIs and IntersectionObserver.
-- Detects many additional APIs that require hardware, a server counterpart, an installed PWA, browser-specific support, or APIs that cannot be safely/meaningfully demonstrated from a static GitHub Pages site.
-- Allows a paired controller peer to request API actions on a controlled host over WebRTC.
+The catalog is aligned to the MDN **Web APIs → Specifications** index checked on 24 September 2026. The build contains 148 specification-level Web API entries. The page feature-detects every catalog entry and exposes an executable browser test wherever a useful static-page test is possible.
 
-## Security and permission model
+Some APIs cannot be fully exercised by a static GitHub Pages site because they require a server counterpart, installed-PWA state, an identity/payment provider, DRM/key system, a push service, origin trials/browser flags, compatible external hardware, or a specific OS/browser. Those APIs remain in the catalog and are reported accurately as detected/not detected instead of pretending that a complete call succeeded.
 
-This project intentionally does **not** bypass browser permissions or user-activation requirements.
+See [`API_COVERAGE.md`](./API_COVERAGE.md) for the generated catalog snapshot.
 
-The controlled peer must enable remote requests for the current session. Sensitive APIs that browsers require to originate from a local user gesture are queued on the controlled device until the user presses **Run requested action**. Browser permission/device-picker dialogs still apply.
+## Peer model
 
-That behavior is required by the Web platform for APIs such as camera/mic permissions, screen sharing, file pickers, clipboard reads, Bluetooth/USB/HID/Serial device selection, NFC, notifications and similar powerful features.
+The same page can be opened on two devices:
 
-## Pair two devices without a signaling server
+- **Controlled peer** — receives API test requests.
+- **Controller peer** — requests a test from the controlled peer.
 
-1. Open the same deployed page on both devices.
-2. Device A: choose **Controlled peer (Host)** and check **Allow paired peer to request API actions for this session**.
-3. Device A: press **Create offer**, copy the JSON offer to Device B.
-4. Device B: choose **Controller peer**, paste the offer and press **Create answer from pasted offer**.
-5. Copy Device B's answer back to Device A.
-6. Device A: paste the answer and press **Apply pasted answer**.
-7. Wait until both pages report the peer data channel as connected.
-8. Device B can now choose an API and press **Request on peer**.
+The peers use a WebRTC DataChannel. Camera, microphone, and screen streams can also be sent over the already-paired WebRTC connection after the controlled peer approves that specific action.
 
-The app uses a public STUN server for NAT discovery. Some restrictive NAT/firewall combinations require a TURN relay; this static project does not include a TURN server.
+### Pairing
+
+1. Open the page on both devices.
+2. Choose **Controlled peer** on one and **Controller peer** on the other.
+3. On one device press **Create offer**, then copy the JSON to the other device.
+4. Paste it and press **Answer pasted offer**.
+5. Copy the generated answer back to the offer device.
+6. Paste it and press **Apply pasted answer**.
+7. On the controlled device enable **Allow this paired peer to send requests during this session**.
+
+The app uses public STUN services for NAT discovery. A restrictive NAT/firewall can still require a TURN relay; a static GitHub Pages deployment cannot itself provide TURN.
+
+## Permission and safety model
+
+The application does not bypass browser or operating-system permission boundaries.
+
+After the controlled peer explicitly enables requests for the current session:
+
+- low-risk diagnostics can execute automatically;
+- sensitive capabilities are queued and require **Approve once** on the controlled device;
+- any browser/OS permission prompt or device picker still applies;
+- approval is for one requested action only.
+
+Sensitive actions include camera, microphone, screen capture, geolocation, clipboard access, local files/directories, contacts, Bluetooth, USB, Serial, HID, NFC, MIDI, local-font enumeration, screen/window details, sensors, authentication/payment-related checks, and similar powerful capabilities.
+
+This is intentional. Ordinary web pages cannot legitimately make many of these APIs universally consentless, and some APIs specifically require transient local user activation.
 
 ## GitHub Pages
 
-For this repository, enable GitHub Pages from:
+Enable:
 
 **Repository → Settings → Pages → Deploy from a branch → `main` / root**
 
-Then the expected URL is:
+Expected URL:
 
 `https://dng0101.github.io/Super-api/`
 
-GitHub Pages provides HTTPS, which is required for many powerful Web APIs.
+HTTPS is important because many powerful Web APIs are restricted to secure contexts.
 
-## Important limitations
+## Files
 
-There is no single browser that implements every Web API. Some APIs are experimental, removed, vendor-specific, restricted to installed PWAs, require hardware, require a backend/service endpoint, require an origin trial/flag, or are intentionally unavailable to ordinary web pages.
+- `index.html` — UI and peer-control console
+- `catalog.js` — current Web API specification catalog and capability detectors
+- `app.js` — runnable API tests, peer transport, permission policy, logging
+- `sw.js` — service worker/offline shell and background-sync test target
+- `manifest.webmanifest` — PWA integration surfaces
+- `icon.svg` — PWA icon
+- `API_COVERAGE.md` — generated catalog snapshot
 
-Therefore the project uses two strategies:
+## Testing notes
 
-1. **Runnable demo** where a meaningful static-page test is possible.
-2. **Capability detection** where the API cannot be fully exercised in a portable GitHub Pages-only app.
-
-The capability matrix reports the browser's actual exposed API surface instead of pretending unsupported features work.
+Browser support differs substantially. For broad coverage, test current Chrome/Chromium on Android and desktop, plus Firefox and Safari where available. A red **not detected** result means the identifying surface is not exposed in that browser/context; it is not automatically an application bug.
