@@ -17,7 +17,7 @@ The same page can be opened on two devices:
 - **Controlled peer** — receives API test requests.
 - **Controller peer** — requests a test from the controlled peer.
 
-The peers use a WebRTC DataChannel. Camera, microphone, and screen streams can also be sent over the already-paired WebRTC connection after the controlled peer approves that specific action.
+The peers use a WebRTC DataChannel. Camera, microphone, and screen streams can also be sent over the paired WebRTC connection when the browser allows the requested capability.
 
 ### Pairing
 
@@ -27,24 +27,24 @@ The peers use a WebRTC DataChannel. Camera, microphone, and screen streams can a
 4. Paste it and press **Answer pasted offer**.
 5. Copy the generated answer back to the offer device.
 6. Paste it and press **Apply pasted answer**.
-7. On the controlled device enable **Allow this paired peer to send requests during this session**.
+7. On the controlled device enable **Authorize this paired peer to run all implemented API actions for this page session** once.
 
 The app uses public STUN services for NAT discovery. A restrictive NAT/firewall can still require a TURN relay; a static GitHub Pages deployment cannot itself provide TURN.
 
-## Permission and safety model
+## Single-session authorization model
 
-The application does not bypass browser or operating-system permission boundaries.
+There is one app-level authorization for the complete page session.
 
-After the controlled peer explicitly enables requests for the current session:
+After the controlled peer enables that single authorization:
 
-- low-risk diagnostics can execute automatically;
-- sensitive capabilities are queued and require **Approve once** on the controlled device;
-- any browser/OS permission prompt or device picker still applies;
-- approval is for one requested action only.
+- every implemented peer API request is forwarded immediately by the application;
+- the application does not ask for a second per-action approval;
+- the authorization is not stored persistently and resets on reload or when the page switches to Controller mode;
+- a visible **session control ON** indicator remains on the controlled page.
 
-Sensitive actions include camera, microphone, screen capture, geolocation, clipboard access, local files/directories, contacts, Bluetooth, USB, Serial, HID, NFC, MIDI, local-font enumeration, screen/window details, sensors, authentication/payment-related checks, and similar powerful capabilities.
+Browser and operating-system security rules still apply independently. Some Web APIs require their own permission prompt, device chooser, or fresh transient user activation. Examples include screen capture, file/device pickers, Bluetooth, USB, HID, Serial, contacts and similar powerful APIs. JavaScript cannot convert the app's one session authorization into a browser permission that the browser specification requires separately.
 
-This is intentional. Ordinary web pages cannot legitimately make many of these APIs universally consentless, and some APIs specifically require transient local user activation.
+If a remotely requested API is blocked for that reason, the error is returned to the controller instead of reporting a false success.
 
 ## GitHub Pages
 
@@ -62,7 +62,8 @@ HTTPS is important because many powerful Web APIs are restricted to secure conte
 
 - `index.html` — UI and peer-control console
 - `catalog.js` — current Web API specification catalog and capability detectors
-- `app.js` — runnable API tests, peer transport, permission policy, logging
+- `app.js` — runnable API tests, peer transport and logging
+- `session-consent.js` — one-session authorization layer for all peer actions
 - `sw.js` — service worker/offline shell and background-sync test target
 - `manifest.webmanifest` — PWA integration surfaces
 - `icon.svg` — PWA icon
