@@ -1,10 +1,19 @@
 {
   "name": "Super API Peer Lab",
   "short_name": "Super API",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0b0f14",
-  "theme_color": "#101418",
-  "description": "Peer-controlled Web API capability lab for testing browser features with explicit browser permission boundaries."
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "orientation": "any",
+  "background_color": "#070b12",
+  "theme_color": "#0b1020",
+  "description": "Comprehensive browser Web API capability lab with consent-gated WebRTC peer control.",
+  "icons": [{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}],
+  "launch_handler": {"client_mode":"navigate-existing"},
+  "shortcuts": [{"name":"Open API Lab","short_name":"API Lab","url":"./"}],
+  "share_target": {"action":"./","method":"GET","params":{"title":"share_title","text":"share_text","url":"share_url"}},
+  "protocol_handlers": [{"protocol":"web+superapi","url":"./?protocol=%s"}],
+  "file_handlers": [{"action":"./","accept":{"text/plain":[".txt"],"application/json":[".json"]}}]
 }
