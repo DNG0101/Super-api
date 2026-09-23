@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#101418" />
+  <meta name="description" content="Peer-controlled browser Web API capability lab for GitHub Pages." />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <title>Super API Peer Lab</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0f14; --panel:#121821; --muted:#8ea0b5; --text:#e7eef7; --line:#253243; --ok:#45d483; --bad:#ff6b6b; --warn:#f4c95d; --accent:#6aa9ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:linear-gradient(180deg,#0b0f14,#0e131a 45%,#0b0f14); color:var(--text); }
+    header { padding:20px; border-bottom:1px solid var(--line); position:sticky; top:0; backdrop-filter:blur(16px); background:#0b0f14dd; z-index:5; }
+    h1,h2,h3 { margin:0 0 10px; }
+    p { color:var(--muted); }
+    main { width:min(1200px,96vw); margin:18px auto 60px; display:grid; gap:16px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; box-shadow:0 12px 30px #0003; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    button,input,textarea,select { font:inherit; color:var(--text); background:#0e141c; border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+    button { cursor:pointer; }
+    button:hover { border-color:#48617f; }
+    button.primary { background:#17345f; border-color:#2e68b6; }
+    button.danger { background:#4b2020; border-color:#8a3636; }
+    textarea { width:100%; min-height:130px; resize:vertical; }
+    code,pre { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#0a0e13; border:1px solid var(--line); border-radius:12px; padding:12px; max-height:280px; overflow:auto; }
+    .badge { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:999px; padding:5px 9px; color:var(--muted); font-size:12px; }
+    .ok { color:var(--ok); }
+    .bad { color:var(--bad); }
+    .warn { color:var(--warn); }
+    .muted { color:var(--muted); }
+    .cap-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
+    .cap { padding:12px; border:1px solid var(--line); border-radius:12px; background:#0f151d; }
+    .cap .name { font-weight:650; margin-bottom:7px; }
+    .cap .meta { font-size:12px; color:var(--muted); min-height:32px; }
+    .cap button { width:100%; margin-top:10px; }
+    .status-dot { width:9px; height:9px; border-radius:50%; display:inline-block; background:#64748b; }
+    .status-dot.live { background:var(--ok); box-shadow:0 0 0 4px #45d48320; }
+    .status-dot.dead { background:var(--bad); }
+    video { width:100%; max-height:320px; background:#000; border-radius:12px; }
+    .hidden { display:none !important; }
+    .notice { padding:12px; border-radius:12px; border:1px solid #715a1d; background:#2a230f; color:#eadb9b; }
+    .approval { border-color:#6f4d20; background:#2a1f10; }
+    @media (max-width:640px){ header{position:static} .card{padding:13px} }
+  </style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1 style="margin-right:auto">Super API Peer Lab</h1>
+    <span class="badge"><span id="connDot" class="status-dot"></span><span id="connText">Not paired</span></span>
+    <span class="badge" id="secureBadge">Checking secure context…</span>
+  </div>
+</header>
+
+<main>
+  <section class="card notice">
+    <strong>Browser security still applies.</strong>
+    Remote peers can request actions, but APIs that require permission, a local user gesture, or device selection must still be approved on the controlled device. This page never attempts to bypass browser permission boundaries.
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>1) Choose this peer's role</h2>
+      <div class="row">
+        <button id="hostRole" class="primary">Controlled peer (Host)</button>
+        <button id="controllerRole">Controller peer</button>
+      </div>
+      <p id="roleText">Choose a role on each device.</p>
+      <label class="row">
+        <input type="checkbox" id="sessionConsent">
+        <span>Allow paired peer to request API actions for this session</span>
+      </label>
+    </div>
+
+    <div class="card">
+      <h2>2) Manual WebRTC pairing</h2>
+      <p>No signaling server is required. Exchange offer/answer text between the two devices.</p>
+      <div class="row">
+        <button id="createOffer" class="primary">Create offer</button>
+        <button id="makeAnswer">Create answer from pasted offer</button>
+        <button id="applyAnswer">Apply pasted answer</button>
+      </div>
+      <textarea id="signalBox" placeholder="Offer / answer text appears here, or paste remote signal here."></textarea>
+      <div class="row">
+        <button id="copySignal">Copy</button>
+        <button id="clearSignal">Clear</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="pendingCard" class="card approval hidden">
+    <h2>Pending local approval</h2>
+    <p id="pendingText"></p>
+    <div class="row">
+      <button id="approvePending" class="primary">Run requested action</button>
+      <button id="rejectPending" class="danger">Reject</button>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>Peer commands</h2>
+      <p>Controller can request a named API test on the paired host.</p>
+      <div class="row">
+        <select id="remoteAction"></select>
+        <button id="sendRemote" class="primary">Request on peer</button>
+      </div>
+      <p class="muted">Some commands will be queued on the host until a local click because browsers require user activation.</p>
+    </div>
+
+    <div class="card">
+      <h2>Live output</h2>
+      <pre id="output">Ready.</pre>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <h2 style="margin-right:auto">Browser Web API capability matrix</h2>
+      <input id="filter" placeholder="Filter APIs…" />
+      <button id="rerunDetection">Re-detect</button>
+    </div>
+    <p>“Supported” means the API surface exists in this browser. It does not guarantee the device, OS, permission, or current browsing context allows it.</p>
+    <div id="caps" class="cap-grid"></div>
+  </section>
+
+  <section class="card">
+    <h2>Media preview</h2>
+    <video id="preview" autoplay playsinline controls muted></video>
+    <div class="row">
+      <button id="stopMedia" class="danger">Stop local media</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const out = $('#output');
+  const preview = $('#preview');
+  const log = (...args) => {
+    const msg = args.map(x => typeof x === 'string' ? x : JSON.stringify(x, null, 2)).join(' ');
+    out.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + out.textContent;
+  };
+
+  $('#secureBadge').textContent = isSecureContext ? 'Secure context ✓' : 'Not a secure context';
+  $('#secureBadge').classList.add(isSecureContext ? 'ok' : 'bad');
+
+  let role = null;
+  let pc = null;
+  let dc = null;
+  let localStreams = [];
+  let pendingRemote = null;
+  let wakeLock = null;
+
+  const userActivationRequired = new Set([
+    'screen','clipboard-read','file-open','file-save','directory','share','contacts',
+    'bluetooth','usb','serial','hid','nfc','notifications','fullscreen','pip','payment','webauthn'
+  ]);
+
+  function setRole(r) {
+    role = r;
+    $('#roleText').textContent = r === 'host'
+      ? 'This device exposes approved Web API tests to the paired controller.'
+      : 'This device sends API test requests to the paired host.';
+    $('#hostRole').classList.toggle('primary', r === 'host');
+    $('#controllerRole').classList.toggle('primary', r === 'controller');
+  }
+  $('#hostRole').onclick = () => setRole('host');
+  $('#controllerRole').onclick = () => setRole('controller');
+
+  function updateConnection(live, text) {
+    $('#connDot').className = 'status-dot ' + (live ? 'live' : 'dead');
+    $('#connText').textContent = text;
+  }
+
+  function newPeerConnection() {
+    if (pc) try { pc.close(); } catch {}
+    pc = new RTCPeerConnection({ iceServers: [{ urls:'stun:stun.l.google.com:19302' }] });
+    pc.onconnectionstatechange = () => {
+      const live = pc.connectionState === 'connected';
+      updateConnection(live, `WebRTC: ${pc.connectionState}`);
+    };
+    pc.ondatachannel = e => bindChannel(e.channel);
+    return pc;
+  }
+
+  function bindChannel(channel) {
+    dc = channel;
+    dc.onopen = () => updateConnection(true, 'Peer data channel connected');
+    dc.onclose = () => updateConnection(false, 'Peer data channel closed');
+    dc.onerror = e => log('Data channel error', e.message || e);
+    dc.onmessage = e => {
+      let msg;
+      try { msg = JSON.parse(e.data); } catch { return; }
+      if (msg.type === 'request') handleRemoteRequest(msg);
+      if (msg.type === 'result') log(`Peer result for ${msg.action}:`, msg.result);
+      if (msg.type === 'error') log(`Peer error for ${msg.action}:`, msg.error);
+    };
+  }
+
+  async function waitIceComplete(peer) {
+    if (peer.iceGatheringState === 'complete') return;
+    await new Promise(resolve => {
+      const f = () => {
+        if (peer.iceGatheringState === 'complete') {
+          peer.removeEventListener('icegatheringstatechange', f);
+          resolve();
+        }
+      };
+      peer.addEventListener('icegatheringstatechange', f);
+    });
+  }
+
+  $('#createOffer').onclick = async () => {
+    try {
+      setRole(role || 'host');
+      newPeerConnection();
+      bindChannel(pc.createDataChannel('super-api'));
+      await pc.setLocalDescription(await pc.createOffer());
+      await waitIceComplete(pc);
+      $('#signalBox').value = JSON.stringify(pc.localDescription);
+      log('Offer created.');
+    } catch (e) { log('Offer error:', e.message); }
+  };
+
+  $('#makeAnswer').onclick = async () => {
+    try {
+      setRole(role || 'controller');
+      const offer = JSON.parse($('#signalBox').value.trim());
+      newPeerConnection();
+      await pc.setRemoteDescription(offer);
+      await pc.setLocalDescription(await pc.createAnswer());
+      await waitIceComplete(pc);
+      $('#signalBox').value = JSON.stringify(pc.localDescription);
+      log('Answer created.');
+    } catch (e) { log('Answer error:', e.message); }
+  };
+
+  $('#applyAnswer').onclick = async () => {
+    try {
+      if (!pc) throw new Error('Create an offer first on this device.');
+      const answer = JSON.parse($('#signalBox').value.trim());
+      await pc.setRemoteDescription(answer);
+      log('Answer applied. Waiting for peer connection…');
+    } catch (e) { log('Apply-answer error:', e.message); }
+  };
+
+  $('#copySignal').onclick = async () => {
+    try { await navigator.clipboard.writeText($('#signalBox').value); log('Signal copied.'); }
+    catch { $('#signalBox').select(); document.execCommand('copy'); log('Signal copied with fallback.'); }
+  };
+  $('#clearSignal').onclick = () => $('#signalBox').value = '';
+
+  function send(obj) {
+    if (!dc || dc.readyState !== 'open') throw new Error('Peer is not connected.');
+    dc.send(JSON.stringify(obj));
+  }
+
+  async function handleRemoteRequest(msg) {
+    if (role !== 'host') return send({type:'error', action:msg.action, error:'This peer is not in Host mode.'});
+    if (!$('#sessionConsent').checked) return send({type:'error', action:msg.action, error:'Host has not enabled remote requests for this session.'});
+    if (userActivationRequired.has(msg.action)) {
+      pendingRemote = msg;
+      $('#pendingText').textContent = `Peer requests: ${msg.action}. This API may require a local browser gesture, device picker, or permission prompt.`;
+      $('#pendingCard').classList.remove('hidden');
+      return;
+    }
+    await executeRemote(msg);
+  }
+
+  async function executeRemote(msg) {
+    try {
+      const result = await runAction(msg.action, true);
+      send({type:'result', action:msg.action, result:serialize(result)});
+    } catch (e) {
+      send({type:'error', action:msg.action, error:e.message || String(e)});
+    }
+  }
+
+  $('#approvePending').onclick = async () => {
+    const msg = pendingRemote;
+    pendingRemote = null;
+    $('#pendingCard').classList.add('hidden');
+    if (msg) await executeRemote(msg);
+  };
+  $('#rejectPending').onclick = () => {
+    if (pendingRemote) send({type:'error', action:pendingRemote.action, error:'Rejected by host user.'});
+    pendingRemote = null;
+    $('#pendingCard').classList.add('hidden');
+  };
+
+  $('#sendRemote').onclick = () => {
+    try {
+      if (role !== 'controller') log('Tip: set this device to Controller role.');
+      const action = $('#remoteAction').value;
+      send({type:'request', action, id:crypto.randomUUID?.() || String(Date.now())});
+      log('Requested on peer:', action);
+    } catch (e) { log(e.message); }
+  };
+
+  function serialize(value) {
+    if (value == null) return value;
+    if (value instanceof MediaStream) return {mediaStream:true, tracks:value.getTracks().map(t=>({kind:t.kind,label:t.label,enabled:t.enabled,muted:t.muted}))};
+    if (value instanceof Blob) return {blob:true,type:value.type,size:value.size};
+    try { return JSON.parse(JSON.stringify(value)); } catch { return String(value); }
+  }
+
+  async function stopMedia() {
+    localStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
+    localStreams = [];
+    preview.srcObject = null;
+    log('Local media stopped.');
+  }
+  $('#stopMedia').onclick = stopMedia;
+
+  async function camera() { const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false}); localStreams.push(s); preview.srcObject = s; return s; }
+  async function microphone() { const s = await navigator.mediaDevices.getUserMedia({audio:true,video:false}); localStreams.push(s); return s; }
+  async function screen() { const s = await navigator.mediaDevices.getDisplayMedia({video:true,audio:true}); localStreams.push(s); preview.srcObject = s; return s; }
+  async function torch() { let s = localStreams.find(x => x.getVideoTracks().length); if (!s) s = await camera(); const t = s.getVideoTracks()[0]; const caps = t.getCapabilities?.() || {}; if (!caps.torch) throw new Error('Torch not exposed by this camera/browser.'); await t.applyConstraints({advanced:[{torch:true}]}); return 'Torch enabled. Use Stop local media to release camera.'; }
+  async function geolocation() { return await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(p=>res({latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy,altitude:p.coords.altitude,heading:p.coords.heading,speed:p.coords.speed}),e=>rej(new Error(e.message)),{enableHighAccuracy:true,timeout:15000})); }
+  async function clipboardRead() { return await navigator.clipboard.readText(); }
+  async function clipboardWrite() { await navigator.clipboard.writeText('Super API Peer Lab ' + new Date().toISOString()); return 'Clipboard text written.'; }
+  async function notificationTest() { const p = await Notification.requestPermission(); if (p !== 'granted') return `Permission: ${p}`; new Notification('Super API Peer Lab', {body:'Notification API works on this browser.'}); return 'Notification shown.'; }
+  async function wakeLockTest() { wakeLock = await navigator.wakeLock.request('screen'); return `Wake lock: ${wakeLock.released ? 'released':'active'}`; }
+  async function share() { await navigator.share({title:'Super API Peer Lab',text:'Web Share API test',url:location.href}); return 'Share sheet opened.'; }
+  async function fileOpen() { if (window.showOpenFilePicker) { const [h] = await showOpenFilePicker(); const f = await h.getFile(); return {name:f.name,size:f.size,type:f.type,lastModified:f.lastModified}; } throw new Error('File System Access picker unavailable.'); }
+  async function fileSave() { if (!window.showSaveFilePicker) throw new Error('Save picker unavailable.'); const h = await showSaveFilePicker({suggestedName:'super-api-test.txt'}); const w = await h.createWritable(); await w.write('Super API Peer Lab\n' + new Date().toISOString()); await w.close(); return 'File saved.'; }
+  async function directory() { if (!window.showDirectoryPicker) throw new Error('Directory picker unavailable.'); const h = await showDirectoryPicker(); return {name:h.name,kind:h.kind}; }
+  async function opfs() { const root = await navigator.storage.getDirectory(); const h = await root.getFileHandle('super-api-test.txt',{create:true}); const w = await h.createWritable(); await w.write('OPFS test ' + Date.now()); await w.close(); const f = await h.getFile(); return {name:f.name,size:f.size}; }
+  async function fullscreen() { await document.documentElement.requestFullscreen(); return 'Fullscreen entered.'; }
+  async function pip() { if (!document.pictureInPictureEnabled) throw new Error('Picture-in-Picture unavailable.'); if (!preview.srcObject) await camera(); await preview.requestPictureInPicture(); return 'Picture-in-Picture entered.'; }
+  async function vibration() { navigator.vibrate([120,60,120]); return 'Vibration requested.'; }
+  async function battery() { const b = await navigator.getBattery(); return {charging:b.charging,level:b.level,chargingTime:b.chargingTime,dischargingTime:b.dischargingTime}; }
+  async function network() { const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection; return c ? {effectiveType:c.effectiveType,downlink:c.downlink,rtt:c.rtt,saveData:c.saveData,type:c.type} : {online:navigator.onLine}; }
+  async function bluetooth() { const d = await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[]}); return {name:d.name,id:d.id,gattConnected:d.gatt?.connected}; }
+  async function usb() { const d = await navigator.usb.requestDevice({filters:[]}); return {manufacturerName:d.manufacturerName,productName:d.productName,serialNumber:d.serialNumber,vendorId:d.vendorId,productId:d.productId}; }
+  async function serial() { const p = await navigator.serial.requestPort(); return p.getInfo(); }
+  async function hid() { const ds = await navigator.hid.requestDevice({filters:[]}); return ds.map(d=>({productName:d.productName,vendorId:d.vendorId,productId:d.productId,opened:d.opened})); }
+  async function nfc() { const n = new NDEFReader(); await n.scan(); return 'NFC scan started; keep page open and bring an NDEF tag near the device.'; }
+  async function midi() { const a = await navigator.requestMIDIAccess(); return {inputs:[...a.inputs.values()].map(x=>x.name),outputs:[...a.outputs.values()].map(x=>x.name),sysexEnabled:a.sysexEnabled}; }
+  async function gamepad() { return [...navigator.getGamepads()].filter(Boolean).map(g=>({id:g.id,index:g.index,buttons:g.buttons.length,axes:g.axes.length,connected:g.connected})); }
+  async function audioContext() { const c = new (window.AudioContext||window.webkitAudioContext)(); await c.resume(); const result={state:c.state,sampleRate:c.sampleRate,baseLatency:c.baseLatency}; await c.close(); return result; }
+  async function speech() { speechSynthesis.speak(new SpeechSynthesisUtterance('Super API Peer Lab speech synthesis test')); return 'Speech queued.'; }
+  async function cryptoTest() { const data = new TextEncoder().encode('super-api'); const hash = new Uint8Array(await crypto.subtle.digest('SHA-256',data)); return [...hash].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+  async function storageTest() { localStorage.setItem('super-api-local','ok'); sessionStorage.setItem('super-api-session','ok'); const est = await navigator.storage?.estimate?.(); return {localStorage:localStorage.getItem('super-api-local'),sessionStorage:sessionStorage.getItem('super-api-session'),estimate:est}; }
+  async function cacheTest() { const c = await caches.open('super-api-lab-v1'); await c.put('./?cache-test=1', new Response(JSON.stringify({time:Date.now()}),{headers:{'content-type':'application/json'}})); const r = await c.match('./?cache-test=1'); return await r.json(); }
+  async function indexedDBTest() { return await new Promise((resolve,reject)=>{ const req=indexedDB.open('super-api-lab',1); req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains('kv')) req.result.createObjectStore('kv'); }; req.onerror=()=>reject(req.error); req.onsuccess=()=>{ const db=req.result, tx=db.transaction('kv','readwrite'), s=tx.objectStore('kv'); s.put({time:Date.now()},'test'); const g=s.get('test'); g.onsuccess=()=>resolve(g.result); g.onerror=()=>reject(g.error); }; }); }
+  async function fetchTest() { const r=await fetch('./',{cache:'no-store'}); return {status:r.status,type:r.type,url:r.url}; }
+  async function workerTest() { const blob=new Blob([`self.onmessage=e=>postMessage({echo:e.data,time:Date.now()})`],{type:'text/javascript'}); const u=URL.createObjectURL(blob), w=new Worker(u); const v=await new Promise((res,rej)=>{ w.onmessage=e=>res(e.data); w.onerror=rej; w.postMessage('hello'); }); w.terminate(); URL.revokeObjectURL(u); return v; }
+  async function broadcastTest() { const name='super-api-' + Math.random(); const a=new BroadcastChannel(name), b=new BroadcastChannel(name); const v=await new Promise((res,rej)=>{ const t=setTimeout(()=>rej(new Error('BroadcastChannel timeout')),1500); b.onmessage=e=>{clearTimeout(t);res(e.data)}; a.postMessage('broadcast-ok'); }); a.close(); b.close(); return v; }
+  async function webgl() { const c=document.createElement('canvas'); const gl=c.getContext('webgl2')||c.getContext('webgl'); if(!gl) throw new Error('WebGL unavailable.'); return {version:gl.getParameter(gl.VERSION),renderer:gl.getParameter(gl.RENDERER),vendor:gl.getParameter(gl.VENDOR)}; }
+  async function webgpu() { const ad=await navigator.gpu.requestAdapter(); if(!ad) throw new Error('No WebGPU adapter.'); return {adapter:true}; }
+  async function compression() { const cs=new CompressionStream('gzip'); const input=new Blob(['hello hello hello']).stream().pipeThrough(cs); const outBlob=await new Response(input).blob(); return {compressedBytes:outBlob.size}; }
+  async function permissions() { const names=['geolocation','notifications','camera','microphone','clipboard-read','clipboard-write']; const result={}; for(const n of names){ try{ result[n]=(await navigator.permissions.query({name:n})).state; }catch{ result[n]='query unsupported'; } } return result; }
+  async function serviceWorker() { if(!('serviceWorker' in navigator)) throw new Error('Service Worker unavailable.'); const reg=await navigator.serviceWorker.register('./sw.js'); return {scope:reg.scope,active:!!reg.active,installing:!!reg.installing,waiting:!!reg.waiting}; }
+  async function orientation() { return {screenOrientation:screen.orientation?.type,angle:screen.orientation?.angle,deviceOrientationEvent:'DeviceOrientationEvent' in window,deviceMotionEvent:'DeviceMotionEvent' in window}; }
+  async function contacts() { if(!navigator.contacts?.select) throw new Error('Contact Picker unavailable.'); return await navigator.contacts.select(['name','email','tel'],{multiple:false}); }
+  async function payment() { if(!window.PaymentRequest) throw new Error('Payment Request unavailable.'); const pr=new PaymentRequest([{supportedMethods:'basic-card'}],{total:{label:'Demo only',amount:{currency:'USD',value:'1.00'}}}); const can=await pr.canMakePayment(); return {canMakePayment:can, note:'Demo does not call show() to avoid initiating a payment UI.'}; }
+  async function webauthn() { return {supported:!!window.PublicKeyCredential, conditional:await PublicKeyCredential?.isConditionalMediationAvailable?.().catch(()=>false) || false}; }
+  async function performanceTest() { const nav=performance.getEntriesByType('navigation')[0]; return nav ? {type:nav.type,duration:nav.duration,domComplete:nav.domComplete,transferSize:nav.transferSize} : {now:performance.now()}; }
+  async function intersection() { return await new Promise(resolve=>{ const d=document.createElement('div'); d.style.height='1px'; document.body.appendChild(d); const io=new IntersectionObserver(e=>{resolve({isIntersecting:e[0].isIntersecting,ratio:e[0].intersectionRatio});io.disconnect();d.remove();}); io.observe(d); }); }
+
+  const actions = {
+    'camera':camera, 'microphone':microphone, 'screen':screen, 'torch':torch,
+    'geolocation':geolocation, 'clipboard-read':clipboardRead, 'clipboard-write':clipboardWrite,
+    'notifications':notificationTest, 'wake-lock':wakeLockTest, 'share':share,
+    'file-open':fileOpen, 'file-save':fileSave, 'directory':directory, 'opfs':opfs,
+    'fullscreen':fullscreen, 'pip':pip, 'vibration':vibration, 'battery':battery,
+    'network':network, 'bluetooth':bluetooth, 'usb':usb, 'serial':serial, 'hid':hid,
+    'nfc':nfc, 'midi':midi, 'gamepad':gamepad, 'audio-context':audioContext, 'speech':speech,
+    'crypto':cryptoTest, 'storage':storageTest, 'cache-storage':cacheTest, 'indexeddb':indexedDBTest,
+    'fetch':fetchTest, 'worker':workerTest, 'broadcast-channel':broadcastTest,
+    'webgl':webgl, 'webgpu':webgpu, 'compression-stream':compression,
+    'permissions':permissions, 'service-worker':serviceWorker, 'orientation':orientation,
+    'contacts':contacts, 'payment':payment, 'webauthn':webauthn, 'performance':performanceTest,
+    'intersection-observer':intersection
+  };
+
+  async function runAction(name, remote=false) {
+    const fn = actions[name];
+    if (!fn) throw new Error(`No runnable demo is defined for ${name}; capability detection only.`);
+    log(`${remote ? 'Remote':'Local'} action: ${name}`);
+    const result = await fn();
+    log(`${name} result:`, serialize(result));
+    return result;
+  }
+
+  const detectionList = [
+    ['Camera / Microphone','camera',()=>!!navigator.mediaDevices?.getUserMedia,'Permission gated'],
+    ['Screen Capture','screen',()=>!!navigator.mediaDevices?.getDisplayMedia,'Permission + local choice'],
+    ['ImageCapture','image-capture',()=> 'ImageCapture' in window,'Camera track required'],
+    ['MediaRecorder','media-recorder',()=> 'MediaRecorder' in window,'Media recording'],
+    ['Torch constraint','torch',()=>!!navigator.mediaDevices?.getUserMedia,'Depends on camera capabilities'],
+    ['Geolocation','geolocation',()=> 'geolocation' in navigator,'Permission gated'],
+    ['Clipboard','clipboard-read',()=>!!navigator.clipboard,'Permission/user activation varies'],
+    ['Notifications','notifications',()=> 'Notification' in window,'Permission gated'],
+    ['Wake Lock','wake-lock',()=>!!navigator.wakeLock,'Secure context'],
+    ['Web Share','share',()=>!!navigator.share,'User activation'],
+    ['File System Access','file-open',()=>!!window.showOpenFilePicker,'Chromium-heavy support'],
+    ['Save File Picker','file-save',()=>!!window.showSaveFilePicker,'User activation'],
+    ['Directory Picker','directory',()=>!!window.showDirectoryPicker,'User activation'],
+    ['Origin Private File System','opfs',()=>!!navigator.storage?.getDirectory,'Origin-private storage'],
+    ['Fullscreen','fullscreen',()=>!!document.documentElement.requestFullscreen,'User activation'],
+    ['Picture-in-Picture','pip',()=>!!document.pictureInPictureEnabled,'Video required'],
+    ['Vibration','vibration',()=> 'vibrate' in navigator,'Mobile support varies'],
+    ['Battery Status','battery',()=>!!navigator.getBattery,'Limited support'],
+    ['Network Information','network',()=>!!(navigator.connection||navigator.mozConnection||navigator.webkitConnection),'Limited support'],
+    ['Web Bluetooth','bluetooth',()=>!!navigator.bluetooth,'Permission/device chooser'],
+    ['WebUSB','usb',()=>!!navigator.usb,'Permission/device chooser'],
+    ['Web Serial','serial',()=>!!navigator.serial,'Permission/device chooser'],
+    ['WebHID','hid',()=>!!navigator.hid,'Permission/device chooser'],
+    ['Web NFC','nfc',()=> 'NDEFReader' in window,'Mostly Chromium Android'],
+    ['Web MIDI','midi',()=>!!navigator.requestMIDIAccess,'Permission may apply'],
+    ['Gamepad','gamepad',()=>!!navigator.getGamepads,'Controller required'],
+    ['WebXR','webxr',()=>!!navigator.xr,'Compatible XR device required'],
+    ['Generic Sensor API','sensor',()=> 'Sensor' in window,'Support/permissions vary'],
+    ['Accelerometer','accelerometer',()=> 'Accelerometer' in window,'Sensor permission varies'],
+    ['Gyroscope','gyroscope',()=> 'Gyroscope' in window,'Sensor permission varies'],
+    ['Magnetometer','magnetometer',()=> 'Magnetometer' in window,'Sensor permission varies'],
+    ['Device Orientation','orientation',()=> 'DeviceOrientationEvent' in window,'Mobile/privacy restrictions'],
+    ['Device Motion','device-motion',()=> 'DeviceMotionEvent' in window,'Mobile/privacy restrictions'],
+    ['Contact Picker','contacts',()=>!!navigator.contacts?.select,'Limited mobile support'],
+    ['Web Authentication','webauthn',()=>!!window.PublicKeyCredential,'Passkeys/security keys'],
+    ['Credential Management','credentials',()=>!!navigator.credentials,'Auth credential APIs'],
+    ['WebOTP','webotp',()=>!!navigator.credentials && 'OTPCredential' in window,'Limited mobile support'],
+    ['Payment Request','payment',()=> 'PaymentRequest' in window,'Payment handler/platform dependent'],
+    ['Web Crypto','crypto',()=>!!crypto.subtle,'Secure crypto primitives'],
+    ['Local Storage','storage',()=>!!window.localStorage,'Synchronous origin storage'],
+    ['Session Storage','session-storage',()=>!!window.sessionStorage,'Per-tab/session'],
+    ['IndexedDB','indexeddb',()=>!!window.indexedDB,'Structured storage'],
+    ['Cache Storage','cache-storage',()=>!!window.caches,'Service-worker style cache'],
+    ['Storage Manager','storage-manager',()=>!!navigator.storage,'Quota/persistence'],
+    ['Cookie Store','cookie-store',()=> 'cookieStore' in window,'Limited support'],
+    ['Storage Access API','storage-access',()=>!!document.requestStorageAccess,'Third-party storage access'],
+    ['Service Worker','service-worker',()=> 'serviceWorker' in navigator,'HTTPS required'],
+    ['Background Sync','background-sync',()=> 'SyncManager' in window,'Service worker required'],
+    ['Periodic Background Sync','periodic-sync',()=> 'PeriodicSyncManager' in window,'Very limited support'],
+    ['Background Fetch','background-fetch',()=> 'BackgroundFetchManager' in window,'Limited support'],
+    ['Push API','push',()=> 'PushManager' in window,'Service worker + server key'],
+    ['Badging','badging',()=> 'setAppBadge' in navigator,'Installed app support varies'],
+    ['WebRTC','webrtc',()=> 'RTCPeerConnection' in window,'P2P transport'],
+    ['WebSocket','websocket',()=> 'WebSocket' in window,'Server endpoint required'],
+    ['WebTransport','webtransport',()=> 'WebTransport' in window,'HTTP/3 server required'],
+    ['Server-Sent Events','sse',()=> 'EventSource' in window,'Server endpoint required'],
+    ['Fetch','fetch',()=> 'fetch' in window,'HTTP requests'],
+    ['Streams','streams',()=> 'ReadableStream' in window,'Streaming data'],
+    ['Compression Streams','compression-stream',()=> 'CompressionStream' in window,'gzip/deflate compression'],
+    ['BroadcastChannel','broadcast-channel',()=> 'BroadcastChannel' in window,'Cross-tab messaging'],
+    ['Web Worker','worker',()=> 'Worker' in window,'Background JS thread'],
+    ['Shared Worker','shared-worker',()=> 'SharedWorker' in window,'Shared origin worker'],
+    ['Web Locks','web-locks',()=>!!navigator.locks,'Cross-tab locking'],
+    ['Canvas 2D','canvas',()=>!!document.createElement('canvas').getContext('2d'),'2D graphics'],
+    ['WebGL','webgl',()=>!!(document.createElement('canvas').getContext('webgl')||document.createElement('canvas').getContext('webgl2')),'GPU graphics'],
+    ['WebGPU','webgpu',()=>!!navigator.gpu,'Modern GPU API'],
+    ['OffscreenCanvas','offscreen-canvas',()=> 'OffscreenCanvas' in window,'Worker graphics'],
+    ['WebCodecs','webcodecs',()=> 'VideoEncoder' in window || 'VideoDecoder' in window,'Low-level media codecs'],
+    ['Media Source Extensions','mse',()=> 'MediaSource' in window,'Streaming media'],
+    ['Web Audio','audio-context',()=> 'AudioContext' in window || 'webkitAudioContext' in window,'Audio DSP'],
+    ['Speech Synthesis','speech',()=> 'speechSynthesis' in window,'Text to speech'],
+    ['Speech Recognition','speech-recognition',()=> 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window,'Implementation dependent'],
+    ['Barcode Detector','barcode',()=> 'BarcodeDetector' in window,'Limited support'],
+    ['EyeDropper','eyedropper',()=> 'EyeDropper' in window,'Desktop-oriented'],
+    ['Local Font Access','local-fonts',()=> 'queryLocalFonts' in window,'Permission gated'],
+    ['Idle Detection','idle-detection',()=> 'IdleDetector' in window,'Permission gated / limited support'],
+    ['Page Visibility','visibility',()=> 'visibilityState' in document,'Page foreground/background'],
+    ['Intersection Observer','intersection-observer',()=> 'IntersectionObserver' in window,'Viewport visibility'],
+    ['Resize Observer','resize-observer',()=> 'ResizeObserver' in window,'Element resizing'],
+    ['Performance APIs','performance',()=>!!window.performance,'Navigation/resource metrics'],
+    ['Permissions API','permissions',()=>!!navigator.permissions,'Permission state queries'],
+    ['URLPattern','urlpattern',()=> 'URLPattern' in window,'URL matching'],
+    ['View Transitions','view-transitions',()=>!!document.startViewTransition,'Visual transitions'],
+    ['Navigation API','navigation-api',()=> 'navigation' in window,'Modern navigation'],
+    ['Screen Orientation','screen-orientation',()=>!!screen.orientation,'Orientation state'],
+    ['Window Management','window-management',()=> 'getScreenDetails' in window,'Multi-screen permission'],
+    ['Presentation API','presentation',()=> 'PresentationRequest' in window,'Remote display support'],
+    ['Remote Playback','remote-playback',()=> 'RemotePlayback' in window,'Media remote playback'],
+    ['Document Picture-in-Picture','doc-pip',()=> 'documentPictureInPicture' in window,'Desktop support varies'],
+    ['Web App Launch Handler','launch-handler',()=> 'LaunchParams' in window || 'launchQueue' in window,'Installed PWA only'],
+    ['File Handling API','file-handling',()=> 'LaunchParams' in window,'Installed PWA + manifest'],
+    ['Share Target (PWA)','share-target',()=> 'serviceWorker' in navigator,'Manifest/server integration'],
+    ['Speculation Rules','speculation',()=> HTMLScriptElement.supports?.('speculationrules') || false,'Prefetch/prerender'],
+    ['Trusted Types','trusted-types',()=> 'trustedTypes' in window,'DOM XSS hardening'],
+    ['Sanitizer API','sanitizer',()=> 'Sanitizer' in window,'Limited/experimental'],
+    ['Scheduler API','scheduler',()=> 'scheduler' in window,'Task prioritization'],
+    ['requestIdleCallback','idle-callback',()=> 'requestIdleCallback' in window,'Idle task scheduling']
+  ];
+
+  const runnableNames = new Set(Object.keys(actions));
+  const select = $('#remoteAction');
+  [...runnableNames].sort().forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; select.appendChild(o); });
+
+  function renderCaps() {
+    const q=$('#filter').value.toLowerCase();
+    const root=$('#caps'); root.textContent='';
+    detectionList.filter(([label,key,fn,note]) => `${label} ${key} ${note}`.toLowerCase().includes(q)).forEach(([label,key,test,note])=>{
+      let supported=false; try{ supported=!!test(); }catch{}
+      const d=document.createElement('div'); d.className='cap';
+      d.innerHTML=`<div class="name">${label}</div><div class="${supported?'ok':'bad'}">${supported?'Supported / exposed':'Not exposed'}</div><div class="meta">${note}</div>`;
+      if(runnableNames.has(key)){ const b=document.createElement('button'); b.textContent='Run locally'; b.disabled=!supported; b.onclick=()=>runAction(key).catch(e=>log(`${key} error:`,e.message)); d.appendChild(b); }
+      root.appendChild(d);
+    });
+  }
+  $('#filter').oninput=renderCaps;
+  $('#rerunDetection').onclick=renderCaps;
+  renderCaps();
+
+  if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(e=>log('Service worker:',e.message)));
+})();
+</script>
+</body>
+</html>
