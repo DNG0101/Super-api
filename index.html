@@ -1,514 +1,156 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#101418" />
-  <meta name="description" content="Peer-controlled browser Web API capability lab for GitHub Pages." />
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <title>Super API Peer Lab</title>
-  <style>
-    :root { color-scheme: dark; --bg:#0b0f14; --panel:#121821; --muted:#8ea0b5; --text:#e7eef7; --line:#253243; --ok:#45d483; --bad:#ff6b6b; --warn:#f4c95d; --accent:#6aa9ff; }
-    * { box-sizing:border-box; }
-    body { margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:linear-gradient(180deg,#0b0f14,#0e131a 45%,#0b0f14); color:var(--text); }
-    header { padding:20px; border-bottom:1px solid var(--line); position:sticky; top:0; backdrop-filter:blur(16px); background:#0b0f14dd; z-index:5; }
-    h1,h2,h3 { margin:0 0 10px; }
-    p { color:var(--muted); }
-    main { width:min(1200px,96vw); margin:18px auto 60px; display:grid; gap:16px; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
-    .card { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; box-shadow:0 12px 30px #0003; }
-    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    button,input,textarea,select { font:inherit; color:var(--text); background:#0e141c; border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
-    button { cursor:pointer; }
-    button:hover { border-color:#48617f; }
-    button.primary { background:#17345f; border-color:#2e68b6; }
-    button.danger { background:#4b2020; border-color:#8a3636; }
-    textarea { width:100%; min-height:130px; resize:vertical; }
-    code,pre { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
-    pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#0a0e13; border:1px solid var(--line); border-radius:12px; padding:12px; max-height:280px; overflow:auto; }
-    .badge { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:999px; padding:5px 9px; color:var(--muted); font-size:12px; }
-    .ok { color:var(--ok); }
-    .bad { color:var(--bad); }
-    .warn { color:var(--warn); }
-    .muted { color:var(--muted); }
-    .cap-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
-    .cap { padding:12px; border:1px solid var(--line); border-radius:12px; background:#0f151d; }
-    .cap .name { font-weight:650; margin-bottom:7px; }
-    .cap .meta { font-size:12px; color:var(--muted); min-height:32px; }
-    .cap button { width:100%; margin-top:10px; }
-    .status-dot { width:9px; height:9px; border-radius:50%; display:inline-block; background:#64748b; }
-    .status-dot.live { background:var(--ok); box-shadow:0 0 0 4px #45d48320; }
-    .status-dot.dead { background:var(--bad); }
-    video { width:100%; max-height:320px; background:#000; border-radius:12px; }
-    .hidden { display:none !important; }
-    .notice { padding:12px; border-radius:12px; border:1px solid #715a1d; background:#2a230f; color:#eadb9b; }
-    .approval { border-color:#6f4d20; background:#2a1f10; }
-    @media (max-width:640px){ header{position:static} .card{padding:13px} }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<meta name="description" content="Browser Web API capability lab with WebRTC peer control and explicit approval for sensitive actions.">
+<link rel="manifest" href="./manifest.webmanifest">
+<title>Super API Peer Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#080c14;--panel:#101722;--panel2:#0c121c;--line:#223149;--text:#e9f1fb;--muted:#91a4ba;--accent:#6fa9ff;--ok:#43d17d;--warn:#f4c85a;--bad:#ff6b73}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#101a2b 0,#080c14 36%);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}header{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:16px 18px;background:#080c14e8;backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}h1,h2,h3{margin:0 0 8px}p{color:var(--muted);line-height:1.45}.badge{border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:12px}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}main{width:min(1220px,96vw);margin:18px auto 60px;display:grid;gap:16px}.panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 18px 50px #0004}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}button,input,textarea,select{font:inherit;color:var(--text);background:#0a111b;border:1px solid var(--line);border-radius:11px;padding:10px 12px}button{cursor:pointer}button:hover{border-color:#46698f}.primary{background:#17345c;border-color:#386eae}.danger{background:#482127;border-color:#8e3944}.safe{background:#173624;border-color:#2e7a4a}textarea{width:100%;min-height:125px;resize:vertical}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#070b11;border:1px solid var(--line);border-radius:12px;padding:12px;max-height:300px;overflow:auto}.notice{border-color:#765e20;background:#2c240d;color:#f0dea1}.cap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}.cap{border:1px solid var(--line);background:#0c131d;border-radius:13px;padding:12px}.cap strong{display:block;margin-bottom:5px}.cap small{display:block;color:var(--muted);min-height:34px}.status{font-size:12px;margin-top:7px}.hidden{display:none!important}video{width:100%;max-height:340px;background:#000;border-radius:12px}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.toolbar input{min-width:240px;flex:1}.approval{border-color:#805820;background:#2b1f0f}.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.mini{font-size:12px;color:var(--muted)}@media(max-width:650px){header{position:static;align-items:flex-start;flex-direction:column}.panel{padding:13px}}
+</style>
 </head>
 <body>
 <header>
-  <div class="row">
-    <h1 style="margin-right:auto">Super API Peer Lab</h1>
-    <span class="badge"><span id="connDot" class="status-dot"></span><span id="connText">Not paired</span></span>
-    <span class="badge" id="secureBadge">Checking secure context…</span>
-  </div>
+  <div><h1>Super API Peer Lab</h1><div class="mini">GitHub Pages • WebRTC peer control • capability explorer</div></div>
+  <div class="row"><span id="secure" class="badge">secure context…</span><span id="peerState" class="badge">peer: disconnected</span></div>
 </header>
-
 <main>
-  <section class="card notice">
-    <strong>Browser security still applies.</strong>
-    Remote peers can request actions, but APIs that require permission, a local user gesture, or device selection must still be approved on the controlled device. This page never attempts to bypass browser permission boundaries.
+  <section class="panel notice"><strong>Security boundary:</strong> this lab does not bypass browser permissions or local-user-activation requirements. A paired peer may request actions, but camera, microphone, screen capture, location, clipboard reads, device pickers, contacts, NFC, files, notifications and similar sensitive capabilities require explicit approval on the controlled device and any browser permission prompt.</section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>1. Role + session access</h2>
+      <div class="row"><button id="hostBtn" class="primary">Controlled peer</button><button id="controllerBtn">Controller peer</button></div>
+      <p id="roleText">Choose a role.</p>
+      <label class="row"><input id="allowRequests" type="checkbox"><span>Allow this paired peer to request actions for this session</span></label>
+    </div>
+    <div class="panel">
+      <h2>2. Manual WebRTC pairing</h2>
+      <p>Works without a signaling server. Exchange the offer/answer text between devices.</p>
+      <div class="row"><button id="offerBtn" class="primary">Create offer</button><button id="answerBtn">Create answer from pasted offer</button><button id="applyBtn">Apply pasted answer</button></div>
+      <textarea id="signal" placeholder="Offer/answer JSON"></textarea>
+      <div class="row"><button id="copyBtn">Copy</button><button id="clearBtn">Clear</button><button id="disconnectBtn" class="danger">Disconnect</button></div>
+    </div>
+  </section>
+
+  <section id="approval" class="panel approval hidden">
+    <h2>Peer action requires local approval</h2>
+    <p id="approvalText"></p>
+    <div class="row"><button id="approveBtn" class="primary">Allow once</button><button id="denyBtn" class="danger">Deny</button></div>
   </section>
 
   <section class="grid">
-    <div class="card">
-      <h2>1) Choose this peer's role</h2>
-      <div class="row">
-        <button id="hostRole" class="primary">Controlled peer (Host)</button>
-        <button id="controllerRole">Controller peer</button>
-      </div>
-      <p id="roleText">Choose a role on each device.</p>
-      <label class="row">
-        <input type="checkbox" id="sessionConsent">
-        <span>Allow paired peer to request API actions for this session</span>
-      </label>
+    <div class="panel">
+      <h2>3. Peer command console</h2>
+      <p>Safe diagnostics can run after session access is enabled. Sensitive actions are always locally approved.</p>
+      <div class="row"><select id="remoteAction"></select><button id="sendRemote" class="primary">Request on peer</button></div>
     </div>
-
-    <div class="card">
-      <h2>2) Manual WebRTC pairing</h2>
-      <p>No signaling server is required. Exchange offer/answer text between the two devices.</p>
-      <div class="row">
-        <button id="createOffer" class="primary">Create offer</button>
-        <button id="makeAnswer">Create answer from pasted offer</button>
-        <button id="applyAnswer">Apply pasted answer</button>
-      </div>
-      <textarea id="signalBox" placeholder="Offer / answer text appears here, or paste remote signal here."></textarea>
-      <div class="row">
-        <button id="copySignal">Copy</button>
-        <button id="clearSignal">Clear</button>
-      </div>
+    <div class="panel">
+      <h2>Live log</h2><pre id="log">Ready.</pre>
     </div>
   </section>
 
-  <section id="pendingCard" class="card approval hidden">
-    <h2>Pending local approval</h2>
-    <p id="pendingText"></p>
-    <div class="row">
-      <button id="approvePending" class="primary">Run requested action</button>
-      <button id="rejectPending" class="danger">Reject</button>
-    </div>
-  </section>
-
-  <section class="grid">
-    <div class="card">
-      <h2>Peer commands</h2>
-      <p>Controller can request a named API test on the paired host.</p>
-      <div class="row">
-        <select id="remoteAction"></select>
-        <button id="sendRemote" class="primary">Request on peer</button>
-      </div>
-      <p class="muted">Some commands will be queued on the host until a local click because browsers require user activation.</p>
-    </div>
-
-    <div class="card">
-      <h2>Live output</h2>
-      <pre id="output">Ready.</pre>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="row">
-      <h2 style="margin-right:auto">Browser Web API capability matrix</h2>
-      <input id="filter" placeholder="Filter APIs…" />
-      <button id="rerunDetection">Re-detect</button>
-    </div>
-    <p>“Supported” means the API surface exists in this browser. It does not guarantee the device, OS, permission, or current browsing context allows it.</p>
+  <section class="panel">
+    <div class="toolbar"><h2 style="margin-right:auto">4. Web API capability matrix</h2><input id="filter" type="search" placeholder="Search API / capability"><button id="rescan">Rescan</button></div>
+    <p>Supported means the JavaScript API surface exists in this browser. Hardware, OS support, permissions, policy, HTTPS, user gestures and browser versions can still prevent use.</p>
     <div id="caps" class="cap-grid"></div>
   </section>
 
-  <section class="card">
-    <h2>Media preview</h2>
-    <video id="preview" autoplay playsinline controls muted></video>
-    <div class="row">
-      <button id="stopMedia" class="danger">Stop local media</button>
-    </div>
+  <section class="panel">
+    <h2>5. Media preview</h2>
+    <video id="preview" autoplay playsinline muted controls></video>
+    <div class="row"><button id="stopMedia" class="danger">Stop media / torch</button></div>
   </section>
 </main>
-
 <script>
-(() => {
-  const $ = s => document.querySelector(s);
-  const out = $('#output');
-  const preview = $('#preview');
-  const log = (...args) => {
-    const msg = args.map(x => typeof x === 'string' ? x : JSON.stringify(x, null, 2)).join(' ');
-    out.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + out.textContent;
-  };
-
-  $('#secureBadge').textContent = isSecureContext ? 'Secure context ✓' : 'Not a secure context';
-  $('#secureBadge').classList.add(isSecureContext ? 'ok' : 'bad');
-
-  let role = null;
-  let pc = null;
-  let dc = null;
-  let localStreams = [];
-  let pendingRemote = null;
-  let wakeLock = null;
-
-  const userActivationRequired = new Set([
-    'screen','clipboard-read','file-open','file-save','directory','share','contacts',
-    'bluetooth','usb','serial','hid','nfc','notifications','fullscreen','pip','payment','webauthn'
-  ]);
-
-  function setRole(r) {
-    role = r;
-    $('#roleText').textContent = r === 'host'
-      ? 'This device exposes approved Web API tests to the paired controller.'
-      : 'This device sends API test requests to the paired host.';
-    $('#hostRole').classList.toggle('primary', r === 'host');
-    $('#controllerRole').classList.toggle('primary', r === 'controller');
-  }
-  $('#hostRole').onclick = () => setRole('host');
-  $('#controllerRole').onclick = () => setRole('controller');
-
-  function updateConnection(live, text) {
-    $('#connDot').className = 'status-dot ' + (live ? 'live' : 'dead');
-    $('#connText').textContent = text;
-  }
-
-  function newPeerConnection() {
-    if (pc) try { pc.close(); } catch {}
-    pc = new RTCPeerConnection({ iceServers: [{ urls:'stun:stun.l.google.com:19302' }] });
-    pc.onconnectionstatechange = () => {
-      const live = pc.connectionState === 'connected';
-      updateConnection(live, `WebRTC: ${pc.connectionState}`);
-    };
-    pc.ondatachannel = e => bindChannel(e.channel);
-    return pc;
-  }
-
-  function bindChannel(channel) {
-    dc = channel;
-    dc.onopen = () => updateConnection(true, 'Peer data channel connected');
-    dc.onclose = () => updateConnection(false, 'Peer data channel closed');
-    dc.onerror = e => log('Data channel error', e.message || e);
-    dc.onmessage = e => {
-      let msg;
-      try { msg = JSON.parse(e.data); } catch { return; }
-      if (msg.type === 'request') handleRemoteRequest(msg);
-      if (msg.type === 'result') log(`Peer result for ${msg.action}:`, msg.result);
-      if (msg.type === 'error') log(`Peer error for ${msg.action}:`, msg.error);
-    };
-  }
-
-  async function waitIceComplete(peer) {
-    if (peer.iceGatheringState === 'complete') return;
-    await new Promise(resolve => {
-      const f = () => {
-        if (peer.iceGatheringState === 'complete') {
-          peer.removeEventListener('icegatheringstatechange', f);
-          resolve();
-        }
-      };
-      peer.addEventListener('icegatheringstatechange', f);
-    });
-  }
-
-  $('#createOffer').onclick = async () => {
-    try {
-      setRole(role || 'host');
-      newPeerConnection();
-      bindChannel(pc.createDataChannel('super-api'));
-      await pc.setLocalDescription(await pc.createOffer());
-      await waitIceComplete(pc);
-      $('#signalBox').value = JSON.stringify(pc.localDescription);
-      log('Offer created.');
-    } catch (e) { log('Offer error:', e.message); }
-  };
-
-  $('#makeAnswer').onclick = async () => {
-    try {
-      setRole(role || 'controller');
-      const offer = JSON.parse($('#signalBox').value.trim());
-      newPeerConnection();
-      await pc.setRemoteDescription(offer);
-      await pc.setLocalDescription(await pc.createAnswer());
-      await waitIceComplete(pc);
-      $('#signalBox').value = JSON.stringify(pc.localDescription);
-      log('Answer created.');
-    } catch (e) { log('Answer error:', e.message); }
-  };
-
-  $('#applyAnswer').onclick = async () => {
-    try {
-      if (!pc) throw new Error('Create an offer first on this device.');
-      const answer = JSON.parse($('#signalBox').value.trim());
-      await pc.setRemoteDescription(answer);
-      log('Answer applied. Waiting for peer connection…');
-    } catch (e) { log('Apply-answer error:', e.message); }
-  };
-
-  $('#copySignal').onclick = async () => {
-    try { await navigator.clipboard.writeText($('#signalBox').value); log('Signal copied.'); }
-    catch { $('#signalBox').select(); document.execCommand('copy'); log('Signal copied with fallback.'); }
-  };
-  $('#clearSignal').onclick = () => $('#signalBox').value = '';
-
-  function send(obj) {
-    if (!dc || dc.readyState !== 'open') throw new Error('Peer is not connected.');
-    dc.send(JSON.stringify(obj));
-  }
-
-  async function handleRemoteRequest(msg) {
-    if (role !== 'host') return send({type:'error', action:msg.action, error:'This peer is not in Host mode.'});
-    if (!$('#sessionConsent').checked) return send({type:'error', action:msg.action, error:'Host has not enabled remote requests for this session.'});
-    if (userActivationRequired.has(msg.action)) {
-      pendingRemote = msg;
-      $('#pendingText').textContent = `Peer requests: ${msg.action}. This API may require a local browser gesture, device picker, or permission prompt.`;
-      $('#pendingCard').classList.remove('hidden');
-      return;
-    }
-    await executeRemote(msg);
-  }
-
-  async function executeRemote(msg) {
-    try {
-      const result = await runAction(msg.action, true);
-      send({type:'result', action:msg.action, result:serialize(result)});
-    } catch (e) {
-      send({type:'error', action:msg.action, error:e.message || String(e)});
-    }
-  }
-
-  $('#approvePending').onclick = async () => {
-    const msg = pendingRemote;
-    pendingRemote = null;
-    $('#pendingCard').classList.add('hidden');
-    if (msg) await executeRemote(msg);
-  };
-  $('#rejectPending').onclick = () => {
-    if (pendingRemote) send({type:'error', action:pendingRemote.action, error:'Rejected by host user.'});
-    pendingRemote = null;
-    $('#pendingCard').classList.add('hidden');
-  };
-
-  $('#sendRemote').onclick = () => {
-    try {
-      if (role !== 'controller') log('Tip: set this device to Controller role.');
-      const action = $('#remoteAction').value;
-      send({type:'request', action, id:crypto.randomUUID?.() || String(Date.now())});
-      log('Requested on peer:', action);
-    } catch (e) { log(e.message); }
-  };
-
-  function serialize(value) {
-    if (value == null) return value;
-    if (value instanceof MediaStream) return {mediaStream:true, tracks:value.getTracks().map(t=>({kind:t.kind,label:t.label,enabled:t.enabled,muted:t.muted}))};
-    if (value instanceof Blob) return {blob:true,type:value.type,size:value.size};
-    try { return JSON.parse(JSON.stringify(value)); } catch { return String(value); }
-  }
-
-  async function stopMedia() {
-    localStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
-    localStreams = [];
-    preview.srcObject = null;
-    log('Local media stopped.');
-  }
-  $('#stopMedia').onclick = stopMedia;
-
-  async function camera() { const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false}); localStreams.push(s); preview.srcObject = s; return s; }
-  async function microphone() { const s = await navigator.mediaDevices.getUserMedia({audio:true,video:false}); localStreams.push(s); return s; }
-  async function screen() { const s = await navigator.mediaDevices.getDisplayMedia({video:true,audio:true}); localStreams.push(s); preview.srcObject = s; return s; }
-  async function torch() { let s = localStreams.find(x => x.getVideoTracks().length); if (!s) s = await camera(); const t = s.getVideoTracks()[0]; const caps = t.getCapabilities?.() || {}; if (!caps.torch) throw new Error('Torch not exposed by this camera/browser.'); await t.applyConstraints({advanced:[{torch:true}]}); return 'Torch enabled. Use Stop local media to release camera.'; }
-  async function geolocation() { return await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(p=>res({latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy,altitude:p.coords.altitude,heading:p.coords.heading,speed:p.coords.speed}),e=>rej(new Error(e.message)),{enableHighAccuracy:true,timeout:15000})); }
-  async function clipboardRead() { return await navigator.clipboard.readText(); }
-  async function clipboardWrite() { await navigator.clipboard.writeText('Super API Peer Lab ' + new Date().toISOString()); return 'Clipboard text written.'; }
-  async function notificationTest() { const p = await Notification.requestPermission(); if (p !== 'granted') return `Permission: ${p}`; new Notification('Super API Peer Lab', {body:'Notification API works on this browser.'}); return 'Notification shown.'; }
-  async function wakeLockTest() { wakeLock = await navigator.wakeLock.request('screen'); return `Wake lock: ${wakeLock.released ? 'released':'active'}`; }
-  async function share() { await navigator.share({title:'Super API Peer Lab',text:'Web Share API test',url:location.href}); return 'Share sheet opened.'; }
-  async function fileOpen() { if (window.showOpenFilePicker) { const [h] = await showOpenFilePicker(); const f = await h.getFile(); return {name:f.name,size:f.size,type:f.type,lastModified:f.lastModified}; } throw new Error('File System Access picker unavailable.'); }
-  async function fileSave() { if (!window.showSaveFilePicker) throw new Error('Save picker unavailable.'); const h = await showSaveFilePicker({suggestedName:'super-api-test.txt'}); const w = await h.createWritable(); await w.write('Super API Peer Lab\n' + new Date().toISOString()); await w.close(); return 'File saved.'; }
-  async function directory() { if (!window.showDirectoryPicker) throw new Error('Directory picker unavailable.'); const h = await showDirectoryPicker(); return {name:h.name,kind:h.kind}; }
-  async function opfs() { const root = await navigator.storage.getDirectory(); const h = await root.getFileHandle('super-api-test.txt',{create:true}); const w = await h.createWritable(); await w.write('OPFS test ' + Date.now()); await w.close(); const f = await h.getFile(); return {name:f.name,size:f.size}; }
-  async function fullscreen() { await document.documentElement.requestFullscreen(); return 'Fullscreen entered.'; }
-  async function pip() { if (!document.pictureInPictureEnabled) throw new Error('Picture-in-Picture unavailable.'); if (!preview.srcObject) await camera(); await preview.requestPictureInPicture(); return 'Picture-in-Picture entered.'; }
-  async function vibration() { navigator.vibrate([120,60,120]); return 'Vibration requested.'; }
-  async function battery() { const b = await navigator.getBattery(); return {charging:b.charging,level:b.level,chargingTime:b.chargingTime,dischargingTime:b.dischargingTime}; }
-  async function network() { const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection; return c ? {effectiveType:c.effectiveType,downlink:c.downlink,rtt:c.rtt,saveData:c.saveData,type:c.type} : {online:navigator.onLine}; }
-  async function bluetooth() { const d = await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[]}); return {name:d.name,id:d.id,gattConnected:d.gatt?.connected}; }
-  async function usb() { const d = await navigator.usb.requestDevice({filters:[]}); return {manufacturerName:d.manufacturerName,productName:d.productName,serialNumber:d.serialNumber,vendorId:d.vendorId,productId:d.productId}; }
-  async function serial() { const p = await navigator.serial.requestPort(); return p.getInfo(); }
-  async function hid() { const ds = await navigator.hid.requestDevice({filters:[]}); return ds.map(d=>({productName:d.productName,vendorId:d.vendorId,productId:d.productId,opened:d.opened})); }
-  async function nfc() { const n = new NDEFReader(); await n.scan(); return 'NFC scan started; keep page open and bring an NDEF tag near the device.'; }
-  async function midi() { const a = await navigator.requestMIDIAccess(); return {inputs:[...a.inputs.values()].map(x=>x.name),outputs:[...a.outputs.values()].map(x=>x.name),sysexEnabled:a.sysexEnabled}; }
-  async function gamepad() { return [...navigator.getGamepads()].filter(Boolean).map(g=>({id:g.id,index:g.index,buttons:g.buttons.length,axes:g.axes.length,connected:g.connected})); }
-  async function audioContext() { const c = new (window.AudioContext||window.webkitAudioContext)(); await c.resume(); const result={state:c.state,sampleRate:c.sampleRate,baseLatency:c.baseLatency}; await c.close(); return result; }
-  async function speech() { speechSynthesis.speak(new SpeechSynthesisUtterance('Super API Peer Lab speech synthesis test')); return 'Speech queued.'; }
-  async function cryptoTest() { const data = new TextEncoder().encode('super-api'); const hash = new Uint8Array(await crypto.subtle.digest('SHA-256',data)); return [...hash].map(x=>x.toString(16).padStart(2,'0')).join(''); }
-  async function storageTest() { localStorage.setItem('super-api-local','ok'); sessionStorage.setItem('super-api-session','ok'); const est = await navigator.storage?.estimate?.(); return {localStorage:localStorage.getItem('super-api-local'),sessionStorage:sessionStorage.getItem('super-api-session'),estimate:est}; }
-  async function cacheTest() { const c = await caches.open('super-api-lab-v1'); await c.put('./?cache-test=1', new Response(JSON.stringify({time:Date.now()}),{headers:{'content-type':'application/json'}})); const r = await c.match('./?cache-test=1'); return await r.json(); }
-  async function indexedDBTest() { return await new Promise((resolve,reject)=>{ const req=indexedDB.open('super-api-lab',1); req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains('kv')) req.result.createObjectStore('kv'); }; req.onerror=()=>reject(req.error); req.onsuccess=()=>{ const db=req.result, tx=db.transaction('kv','readwrite'), s=tx.objectStore('kv'); s.put({time:Date.now()},'test'); const g=s.get('test'); g.onsuccess=()=>resolve(g.result); g.onerror=()=>reject(g.error); }; }); }
-  async function fetchTest() { const r=await fetch('./',{cache:'no-store'}); return {status:r.status,type:r.type,url:r.url}; }
-  async function workerTest() { const blob=new Blob([`self.onmessage=e=>postMessage({echo:e.data,time:Date.now()})`],{type:'text/javascript'}); const u=URL.createObjectURL(blob), w=new Worker(u); const v=await new Promise((res,rej)=>{ w.onmessage=e=>res(e.data); w.onerror=rej; w.postMessage('hello'); }); w.terminate(); URL.revokeObjectURL(u); return v; }
-  async function broadcastTest() { const name='super-api-' + Math.random(); const a=new BroadcastChannel(name), b=new BroadcastChannel(name); const v=await new Promise((res,rej)=>{ const t=setTimeout(()=>rej(new Error('BroadcastChannel timeout')),1500); b.onmessage=e=>{clearTimeout(t);res(e.data)}; a.postMessage('broadcast-ok'); }); a.close(); b.close(); return v; }
-  async function webgl() { const c=document.createElement('canvas'); const gl=c.getContext('webgl2')||c.getContext('webgl'); if(!gl) throw new Error('WebGL unavailable.'); return {version:gl.getParameter(gl.VERSION),renderer:gl.getParameter(gl.RENDERER),vendor:gl.getParameter(gl.VENDOR)}; }
-  async function webgpu() { const ad=await navigator.gpu.requestAdapter(); if(!ad) throw new Error('No WebGPU adapter.'); return {adapter:true}; }
-  async function compression() { const cs=new CompressionStream('gzip'); const input=new Blob(['hello hello hello']).stream().pipeThrough(cs); const outBlob=await new Response(input).blob(); return {compressedBytes:outBlob.size}; }
-  async function permissions() { const names=['geolocation','notifications','camera','microphone','clipboard-read','clipboard-write']; const result={}; for(const n of names){ try{ result[n]=(await navigator.permissions.query({name:n})).state; }catch{ result[n]='query unsupported'; } } return result; }
-  async function serviceWorker() { if(!('serviceWorker' in navigator)) throw new Error('Service Worker unavailable.'); const reg=await navigator.serviceWorker.register('./sw.js'); return {scope:reg.scope,active:!!reg.active,installing:!!reg.installing,waiting:!!reg.waiting}; }
-  async function orientation() { return {screenOrientation:screen.orientation?.type,angle:screen.orientation?.angle,deviceOrientationEvent:'DeviceOrientationEvent' in window,deviceMotionEvent:'DeviceMotionEvent' in window}; }
-  async function contacts() { if(!navigator.contacts?.select) throw new Error('Contact Picker unavailable.'); return await navigator.contacts.select(['name','email','tel'],{multiple:false}); }
-  async function payment() { if(!window.PaymentRequest) throw new Error('Payment Request unavailable.'); const pr=new PaymentRequest([{supportedMethods:'basic-card'}],{total:{label:'Demo only',amount:{currency:'USD',value:'1.00'}}}); const can=await pr.canMakePayment(); return {canMakePayment:can, note:'Demo does not call show() to avoid initiating a payment UI.'}; }
-  async function webauthn() { return {supported:!!window.PublicKeyCredential, conditional:await PublicKeyCredential?.isConditionalMediationAvailable?.().catch(()=>false) || false}; }
-  async function performanceTest() { const nav=performance.getEntriesByType('navigation')[0]; return nav ? {type:nav.type,duration:nav.duration,domComplete:nav.domComplete,transferSize:nav.transferSize} : {now:performance.now()}; }
-  async function intersection() { return await new Promise(resolve=>{ const d=document.createElement('div'); d.style.height='1px'; document.body.appendChild(d); const io=new IntersectionObserver(e=>{resolve({isIntersecting:e[0].isIntersecting,ratio:e[0].intersectionRatio});io.disconnect();d.remove();}); io.observe(d); }); }
-
-  const actions = {
-    'camera':camera, 'microphone':microphone, 'screen':screen, 'torch':torch,
-    'geolocation':geolocation, 'clipboard-read':clipboardRead, 'clipboard-write':clipboardWrite,
-    'notifications':notificationTest, 'wake-lock':wakeLockTest, 'share':share,
-    'file-open':fileOpen, 'file-save':fileSave, 'directory':directory, 'opfs':opfs,
-    'fullscreen':fullscreen, 'pip':pip, 'vibration':vibration, 'battery':battery,
-    'network':network, 'bluetooth':bluetooth, 'usb':usb, 'serial':serial, 'hid':hid,
-    'nfc':nfc, 'midi':midi, 'gamepad':gamepad, 'audio-context':audioContext, 'speech':speech,
-    'crypto':cryptoTest, 'storage':storageTest, 'cache-storage':cacheTest, 'indexeddb':indexedDBTest,
-    'fetch':fetchTest, 'worker':workerTest, 'broadcast-channel':broadcastTest,
-    'webgl':webgl, 'webgpu':webgpu, 'compression-stream':compression,
-    'permissions':permissions, 'service-worker':serviceWorker, 'orientation':orientation,
-    'contacts':contacts, 'payment':payment, 'webauthn':webauthn, 'performance':performanceTest,
-    'intersection-observer':intersection
-  };
-
-  async function runAction(name, remote=false) {
-    const fn = actions[name];
-    if (!fn) throw new Error(`No runnable demo is defined for ${name}; capability detection only.`);
-    log(`${remote ? 'Remote':'Local'} action: ${name}`);
-    const result = await fn();
-    log(`${name} result:`, serialize(result));
-    return result;
-  }
-
-  const detectionList = [
-    ['Camera / Microphone','camera',()=>!!navigator.mediaDevices?.getUserMedia,'Permission gated'],
-    ['Screen Capture','screen',()=>!!navigator.mediaDevices?.getDisplayMedia,'Permission + local choice'],
-    ['ImageCapture','image-capture',()=> 'ImageCapture' in window,'Camera track required'],
-    ['MediaRecorder','media-recorder',()=> 'MediaRecorder' in window,'Media recording'],
-    ['Torch constraint','torch',()=>!!navigator.mediaDevices?.getUserMedia,'Depends on camera capabilities'],
-    ['Geolocation','geolocation',()=> 'geolocation' in navigator,'Permission gated'],
-    ['Clipboard','clipboard-read',()=>!!navigator.clipboard,'Permission/user activation varies'],
-    ['Notifications','notifications',()=> 'Notification' in window,'Permission gated'],
-    ['Wake Lock','wake-lock',()=>!!navigator.wakeLock,'Secure context'],
-    ['Web Share','share',()=>!!navigator.share,'User activation'],
-    ['File System Access','file-open',()=>!!window.showOpenFilePicker,'Chromium-heavy support'],
-    ['Save File Picker','file-save',()=>!!window.showSaveFilePicker,'User activation'],
-    ['Directory Picker','directory',()=>!!window.showDirectoryPicker,'User activation'],
-    ['Origin Private File System','opfs',()=>!!navigator.storage?.getDirectory,'Origin-private storage'],
-    ['Fullscreen','fullscreen',()=>!!document.documentElement.requestFullscreen,'User activation'],
-    ['Picture-in-Picture','pip',()=>!!document.pictureInPictureEnabled,'Video required'],
-    ['Vibration','vibration',()=> 'vibrate' in navigator,'Mobile support varies'],
-    ['Battery Status','battery',()=>!!navigator.getBattery,'Limited support'],
-    ['Network Information','network',()=>!!(navigator.connection||navigator.mozConnection||navigator.webkitConnection),'Limited support'],
-    ['Web Bluetooth','bluetooth',()=>!!navigator.bluetooth,'Permission/device chooser'],
-    ['WebUSB','usb',()=>!!navigator.usb,'Permission/device chooser'],
-    ['Web Serial','serial',()=>!!navigator.serial,'Permission/device chooser'],
-    ['WebHID','hid',()=>!!navigator.hid,'Permission/device chooser'],
-    ['Web NFC','nfc',()=> 'NDEFReader' in window,'Mostly Chromium Android'],
-    ['Web MIDI','midi',()=>!!navigator.requestMIDIAccess,'Permission may apply'],
-    ['Gamepad','gamepad',()=>!!navigator.getGamepads,'Controller required'],
-    ['WebXR','webxr',()=>!!navigator.xr,'Compatible XR device required'],
-    ['Generic Sensor API','sensor',()=> 'Sensor' in window,'Support/permissions vary'],
-    ['Accelerometer','accelerometer',()=> 'Accelerometer' in window,'Sensor permission varies'],
-    ['Gyroscope','gyroscope',()=> 'Gyroscope' in window,'Sensor permission varies'],
-    ['Magnetometer','magnetometer',()=> 'Magnetometer' in window,'Sensor permission varies'],
-    ['Device Orientation','orientation',()=> 'DeviceOrientationEvent' in window,'Mobile/privacy restrictions'],
-    ['Device Motion','device-motion',()=> 'DeviceMotionEvent' in window,'Mobile/privacy restrictions'],
-    ['Contact Picker','contacts',()=>!!navigator.contacts?.select,'Limited mobile support'],
-    ['Web Authentication','webauthn',()=>!!window.PublicKeyCredential,'Passkeys/security keys'],
-    ['Credential Management','credentials',()=>!!navigator.credentials,'Auth credential APIs'],
-    ['WebOTP','webotp',()=>!!navigator.credentials && 'OTPCredential' in window,'Limited mobile support'],
-    ['Payment Request','payment',()=> 'PaymentRequest' in window,'Payment handler/platform dependent'],
-    ['Web Crypto','crypto',()=>!!crypto.subtle,'Secure crypto primitives'],
-    ['Local Storage','storage',()=>!!window.localStorage,'Synchronous origin storage'],
-    ['Session Storage','session-storage',()=>!!window.sessionStorage,'Per-tab/session'],
-    ['IndexedDB','indexeddb',()=>!!window.indexedDB,'Structured storage'],
-    ['Cache Storage','cache-storage',()=>!!window.caches,'Service-worker style cache'],
-    ['Storage Manager','storage-manager',()=>!!navigator.storage,'Quota/persistence'],
-    ['Cookie Store','cookie-store',()=> 'cookieStore' in window,'Limited support'],
-    ['Storage Access API','storage-access',()=>!!document.requestStorageAccess,'Third-party storage access'],
-    ['Service Worker','service-worker',()=> 'serviceWorker' in navigator,'HTTPS required'],
-    ['Background Sync','background-sync',()=> 'SyncManager' in window,'Service worker required'],
-    ['Periodic Background Sync','periodic-sync',()=> 'PeriodicSyncManager' in window,'Very limited support'],
-    ['Background Fetch','background-fetch',()=> 'BackgroundFetchManager' in window,'Limited support'],
-    ['Push API','push',()=> 'PushManager' in window,'Service worker + server key'],
-    ['Badging','badging',()=> 'setAppBadge' in navigator,'Installed app support varies'],
-    ['WebRTC','webrtc',()=> 'RTCPeerConnection' in window,'P2P transport'],
-    ['WebSocket','websocket',()=> 'WebSocket' in window,'Server endpoint required'],
-    ['WebTransport','webtransport',()=> 'WebTransport' in window,'HTTP/3 server required'],
-    ['Server-Sent Events','sse',()=> 'EventSource' in window,'Server endpoint required'],
-    ['Fetch','fetch',()=> 'fetch' in window,'HTTP requests'],
-    ['Streams','streams',()=> 'ReadableStream' in window,'Streaming data'],
-    ['Compression Streams','compression-stream',()=> 'CompressionStream' in window,'gzip/deflate compression'],
-    ['BroadcastChannel','broadcast-channel',()=> 'BroadcastChannel' in window,'Cross-tab messaging'],
-    ['Web Worker','worker',()=> 'Worker' in window,'Background JS thread'],
-    ['Shared Worker','shared-worker',()=> 'SharedWorker' in window,'Shared origin worker'],
-    ['Web Locks','web-locks',()=>!!navigator.locks,'Cross-tab locking'],
-    ['Canvas 2D','canvas',()=>!!document.createElement('canvas').getContext('2d'),'2D graphics'],
-    ['WebGL','webgl',()=>!!(document.createElement('canvas').getContext('webgl')||document.createElement('canvas').getContext('webgl2')),'GPU graphics'],
-    ['WebGPU','webgpu',()=>!!navigator.gpu,'Modern GPU API'],
-    ['OffscreenCanvas','offscreen-canvas',()=> 'OffscreenCanvas' in window,'Worker graphics'],
-    ['WebCodecs','webcodecs',()=> 'VideoEncoder' in window || 'VideoDecoder' in window,'Low-level media codecs'],
-    ['Media Source Extensions','mse',()=> 'MediaSource' in window,'Streaming media'],
-    ['Web Audio','audio-context',()=> 'AudioContext' in window || 'webkitAudioContext' in window,'Audio DSP'],
-    ['Speech Synthesis','speech',()=> 'speechSynthesis' in window,'Text to speech'],
-    ['Speech Recognition','speech-recognition',()=> 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window,'Implementation dependent'],
-    ['Barcode Detector','barcode',()=> 'BarcodeDetector' in window,'Limited support'],
-    ['EyeDropper','eyedropper',()=> 'EyeDropper' in window,'Desktop-oriented'],
-    ['Local Font Access','local-fonts',()=> 'queryLocalFonts' in window,'Permission gated'],
-    ['Idle Detection','idle-detection',()=> 'IdleDetector' in window,'Permission gated / limited support'],
-    ['Page Visibility','visibility',()=> 'visibilityState' in document,'Page foreground/background'],
-    ['Intersection Observer','intersection-observer',()=> 'IntersectionObserver' in window,'Viewport visibility'],
-    ['Resize Observer','resize-observer',()=> 'ResizeObserver' in window,'Element resizing'],
-    ['Performance APIs','performance',()=>!!window.performance,'Navigation/resource metrics'],
-    ['Permissions API','permissions',()=>!!navigator.permissions,'Permission state queries'],
-    ['URLPattern','urlpattern',()=> 'URLPattern' in window,'URL matching'],
-    ['View Transitions','view-transitions',()=>!!document.startViewTransition,'Visual transitions'],
-    ['Navigation API','navigation-api',()=> 'navigation' in window,'Modern navigation'],
-    ['Screen Orientation','screen-orientation',()=>!!screen.orientation,'Orientation state'],
-    ['Window Management','window-management',()=> 'getScreenDetails' in window,'Multi-screen permission'],
-    ['Presentation API','presentation',()=> 'PresentationRequest' in window,'Remote display support'],
-    ['Remote Playback','remote-playback',()=> 'RemotePlayback' in window,'Media remote playback'],
-    ['Document Picture-in-Picture','doc-pip',()=> 'documentPictureInPicture' in window,'Desktop support varies'],
-    ['Web App Launch Handler','launch-handler',()=> 'LaunchParams' in window || 'launchQueue' in window,'Installed PWA only'],
-    ['File Handling API','file-handling',()=> 'LaunchParams' in window,'Installed PWA + manifest'],
-    ['Share Target (PWA)','share-target',()=> 'serviceWorker' in navigator,'Manifest/server integration'],
-    ['Speculation Rules','speculation',()=> HTMLScriptElement.supports?.('speculationrules') || false,'Prefetch/prerender'],
-    ['Trusted Types','trusted-types',()=> 'trustedTypes' in window,'DOM XSS hardening'],
-    ['Sanitizer API','sanitizer',()=> 'Sanitizer' in window,'Limited/experimental'],
-    ['Scheduler API','scheduler',()=> 'scheduler' in window,'Task prioritization'],
-    ['requestIdleCallback','idle-callback',()=> 'requestIdleCallback' in window,'Idle task scheduling']
-  ];
-
-  const runnableNames = new Set(Object.keys(actions));
-  const select = $('#remoteAction');
-  [...runnableNames].sort().forEach(n => { const o=document.createElement('option'); o.value=n; o.textContent=n; select.appendChild(o); });
-
-  function renderCaps() {
-    const q=$('#filter').value.toLowerCase();
-    const root=$('#caps'); root.textContent='';
-    detectionList.filter(([label,key,fn,note]) => `${label} ${key} ${note}`.toLowerCase().includes(q)).forEach(([label,key,test,note])=>{
-      let supported=false; try{ supported=!!test(); }catch{}
-      const d=document.createElement('div'); d.className='cap';
-      d.innerHTML=`<div class="name">${label}</div><div class="${supported?'ok':'bad'}">${supported?'Supported / exposed':'Not exposed'}</div><div class="meta">${note}</div>`;
-      if(runnableNames.has(key)){ const b=document.createElement('button'); b.textContent='Run locally'; b.disabled=!supported; b.onclick=()=>runAction(key).catch(e=>log(`${key} error:`,e.message)); d.appendChild(b); }
-      root.appendChild(d);
-    });
-  }
-  $('#filter').oninput=renderCaps;
-  $('#rerunDetection').onclick=renderCaps;
-  renderCaps();
-
-  if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(e=>log('Service worker:',e.message)));
+(()=>{
+const $=s=>document.querySelector(s), logEl=$('#log'), preview=$('#preview');
+const log=(...x)=>{const t=x.map(v=>typeof v==='string'?v:JSON.stringify(v,null,2)).join(' ');logEl.textContent=`[${new Date().toLocaleTimeString()}] ${t}\n`+logEl.textContent};
+$('#secure').textContent=isSecureContext?'secure context ✓':'not secure';$('#secure').classList.add(isSecureContext?'ok':'bad');
+let role='host',pc=null,dc=null,pending=null,streams=[],wake=null;
+const sensitive=new Set(['camera','microphone','screen','torch','geolocation','clipboard-read','notifications','share','file-open','file-save','directory','fullscreen','pip','bluetooth','usb','serial','hid','nfc','contacts','payment','webauthn','midi']);
+function setRole(r){role=r;$('#hostBtn').classList.toggle('primary',r==='host');$('#controllerBtn').classList.toggle('primary',r==='controller');$('#roleText').textContent=r==='host'?'This device receives peer requests.':'This device sends peer requests.'}setRole('host');
+$('#hostBtn').onclick=()=>setRole('host');$('#controllerBtn').onclick=()=>setRole('controller');
+function peerStatus(s){$('#peerState').textContent='peer: '+s;$('#peerState').className='badge '+(s==='connected'?'ok':s.includes('failed')?'bad':'')}
+function newPC(){if(pc)try{pc.close()}catch{};pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]});pc.onconnectionstatechange=()=>peerStatus(pc.connectionState);pc.ondatachannel=e=>bindDC(e.channel);return pc}
+function bindDC(ch){dc=ch;dc.onopen=()=>peerStatus('connected');dc.onclose=()=>peerStatus('closed');dc.onerror=e=>log('data channel error',e.message||'');dc.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch{return}if(m.type==='request')handleRequest(m);else if(m.type==='result')log('peer result',m.action,m.result);else if(m.type==='error')log('peer error',m.action,m.error);else if(m.type==='message')log('peer message',m.text)}}
+async function waitIce(){if(pc.iceGatheringState==='complete')return;await new Promise(r=>{const f=()=>{if(pc.iceGatheringState==='complete'){pc.removeEventListener('icegatheringstatechange',f);r()}};pc.addEventListener('icegatheringstatechange',f)})}
+$('#offerBtn').onclick=async()=>{try{newPC();bindDC(pc.createDataChannel('super-api'));await pc.setLocalDescription(await pc.createOffer());await waitIce();$('#signal').value=JSON.stringify(pc.localDescription);log('offer created')}catch(e){log(e.message)}};
+$('#answerBtn').onclick=async()=>{try{const offer=JSON.parse($('#signal').value);newPC();await pc.setRemoteDescription(offer);await pc.setLocalDescription(await pc.createAnswer());await waitIce();$('#signal').value=JSON.stringify(pc.localDescription);log('answer created')}catch(e){log(e.message)}};
+$('#applyBtn').onclick=async()=>{try{if(!pc)throw Error('Create offer first');await pc.setRemoteDescription(JSON.parse($('#signal').value));log('answer applied')}catch(e){log(e.message)}};
+$('#copyBtn').onclick=async()=>{try{await navigator.clipboard.writeText($('#signal').value);log('signal copied')}catch{$('#signal').select();document.execCommand('copy')}};$('#clearBtn').onclick=()=>$('#signal').value='';$('#disconnectBtn').onclick=()=>{try{dc?.close();pc?.close()}catch{}dc=pc=null;peerStatus('disconnected')};
+function send(o){if(!dc||dc.readyState!=='open')throw Error('Peer is not connected');dc.send(JSON.stringify(o))}
+async function handleRequest(m){if(role!=='host')return send({type:'error',action:m.action,error:'This peer is not in controlled mode'});if(!$('#allowRequests').checked)return send({type:'error',action:m.action,error:'Controlled peer has not enabled session requests'});if(sensitive.has(m.action)){pending=m;$('#approvalText').textContent=`Peer requests “${m.action}”. Allowing may open a browser permission/device picker or expose local device data.`;$('#approval').classList.remove('hidden');return}await executeRemote(m)}
+async function executeRemote(m){try{const r=await run(m.action,true);send({type:'result',action:m.action,result:serial(r)})}catch(e){send({type:'error',action:m.action,error:e.message||String(e)})}}
+$('#approveBtn').onclick=async()=>{const m=pending;pending=null;$('#approval').classList.add('hidden');if(m)await executeRemote(m)};$('#denyBtn').onclick=()=>{if(pending)send({type:'error',action:pending.action,error:'Denied by controlled peer'});pending=null;$('#approval').classList.add('hidden')};
+$('#sendRemote').onclick=()=>{try{const a=$('#remoteAction').value;send({type:'request',action:a,id:crypto.randomUUID?.()||Date.now()+''});log('requested',a)}catch(e){log(e.message)}};
+function serial(v){if(v==null)return v;if(v instanceof MediaStream)return{mediaStream:true,tracks:v.getTracks().map(t=>({kind:t.kind,label:t.label,enabled:t.enabled,muted:t.muted}))};if(v instanceof Blob)return{blob:true,type:v.type,size:v.size};try{return JSON.parse(JSON.stringify(v))}catch{return String(v)}}
+async function stopMedia(){streams.forEach(s=>s.getTracks().forEach(t=>t.stop()));streams=[];preview.srcObject=null;log('media stopped')}$('#stopMedia').onclick=stopMedia;
+async function media(c){const s=await navigator.mediaDevices.getUserMedia(c);streams.push(s);if(s.getVideoTracks().length)preview.srcObject=s;return s}
+const A={
+'camera':()=>media({video:{facingMode:'environment'},audio:false}),
+'microphone':()=>media({audio:true,video:false}),
+'screen':async()=>{const s=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});streams.push(s);preview.srcObject=s;return s},
+'torch':async()=>{let s=streams.find(x=>x.getVideoTracks().length);if(!s)s=await A.camera();const t=s.getVideoTracks()[0],c=t.getCapabilities?.()||{};if(!c.torch)throw Error('Torch not exposed by camera/browser');await t.applyConstraints({advanced:[{torch:true}]});return'Torch enabled'},
+'geolocation':()=>new Promise((r,j)=>navigator.geolocation.getCurrentPosition(p=>r({latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy,altitude:p.coords.altitude,heading:p.coords.heading,speed:p.coords.speed}),e=>j(Error(e.message)),{enableHighAccuracy:true,timeout:15000})),
+'clipboard-read':()=>navigator.clipboard.readText(),
+'clipboard-write':async()=>{await navigator.clipboard.writeText('Super API '+new Date().toISOString());return'written'},
+'notifications':async()=>{const p=await Notification.requestPermission();if(p==='granted')new Notification('Super API',{body:'Notification test'});return p},
+'wake-lock':async()=>{wake=await navigator.wakeLock.request('screen');return{released:wake.released}},
+'share':async()=>{await navigator.share({title:'Super API Peer Lab',text:'Web Share test',url:location.href});return'share opened'},
+'file-open':async()=>{if(!showOpenFilePicker)throw Error('Open picker unavailable');const[h]=await showOpenFilePicker();const f=await h.getFile();return{name:f.name,size:f.size,type:f.type,lastModified:f.lastModified}},
+'file-save':async()=>{if(!showSaveFilePicker)throw Error('Save picker unavailable');const h=await showSaveFilePicker({suggestedName:'super-api-test.txt'}),w=await h.createWritable();await w.write('Super API '+new Date().toISOString());await w.close();return'saved'},
+'directory':async()=>{if(!showDirectoryPicker)throw Error('Directory picker unavailable');const h=await showDirectoryPicker();return{name:h.name,kind:h.kind}},
+'opfs':async()=>{const root=await navigator.storage.getDirectory(),h=await root.getFileHandle('super-api-test.txt',{create:true}),w=await h.createWritable();await w.write('test '+Date.now());await w.close();const f=await h.getFile();return{name:f.name,size:f.size}},
+'fullscreen':async()=>{await document.documentElement.requestFullscreen();return'fullscreen'},
+'pip':async()=>{if(!preview.srcObject)await A.camera();await preview.requestPictureInPicture();return'picture in picture'},
+'vibration':()=>({requested:navigator.vibrate([120,60,120])}),
+'battery':async()=>{const b=await navigator.getBattery();return{charging:b.charging,level:b.level,chargingTime:b.chargingTime,dischargingTime:b.dischargingTime}},
+'network':async()=>{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;return c?{online:navigator.onLine,effectiveType:c.effectiveType,downlink:c.downlink,rtt:c.rtt,saveData:c.saveData,type:c.type}:{online:navigator.onLine}},
+'bluetooth':async()=>{const d=await navigator.bluetooth.requestDevice({acceptAllDevices:true});return{name:d.name,id:d.id,gattConnected:d.gatt?.connected}},
+'usb':async()=>{const d=await navigator.usb.requestDevice({filters:[]});return{manufacturerName:d.manufacturerName,productName:d.productName,vendorId:d.vendorId,productId:d.productId}},
+'serial':async()=>{const p=await navigator.serial.requestPort();return p.getInfo()},
+'hid':async()=>{const d=await navigator.hid.requestDevice({filters:[]});return d.map(x=>({productName:x.productName,vendorId:x.vendorId,productId:x.productId}))},
+'nfc':async()=>{const n=new NDEFReader();await n.scan();return'NFC scanning started'},
+'midi':async()=>{const m=await navigator.requestMIDIAccess();return{inputs:[...m.inputs.values()].map(x=>x.name),outputs:[...m.outputs.values()].map(x=>x.name)}},
+'gamepad':()=>[...navigator.getGamepads()].filter(Boolean).map(g=>({id:g.id,index:g.index,buttons:g.buttons.length,axes:g.axes.length})),
+'audio-context':async()=>{const c=new(window.AudioContext||webkitAudioContext)();await c.resume();const r={state:c.state,sampleRate:c.sampleRate,baseLatency:c.baseLatency};await c.close();return r},
+'speech':()=>{speechSynthesis.speak(new SpeechSynthesisUtterance('Super API peer lab'));return'speech queued'},
+'crypto':async()=>{const h=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('super-api')));return[...h].map(x=>x.toString(16).padStart(2,'0')).join('')},
+'storage':async()=>({localStorage:!!localStorage,sessionStorage:!!sessionStorage,estimate:await navigator.storage?.estimate?.(),persisted:await navigator.storage?.persisted?.()}),
+'cache-storage':async()=>{const c=await caches.open('super-api-v2');await c.put('./?api-cache-test=1',new Response(JSON.stringify({time:Date.now()}),{headers:{'content-type':'application/json'}}));return await(await c.match('./?api-cache-test=1')).json()},
+'indexeddb':()=>new Promise((r,j)=>{const q=indexedDB.open('super-api-v2',1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains('kv'))q.result.createObjectStore('kv')};q.onerror=()=>j(q.error);q.onsuccess=()=>{const db=q.result,tx=db.transaction('kv','readwrite'),s=tx.objectStore('kv');s.put({time:Date.now()},'x');const g=s.get('x');g.onsuccess=()=>r(g.result);g.onerror=()=>j(g.error)}}),
+'fetch':async()=>{const r=await fetch('./',{cache:'no-store'});return{status:r.status,url:r.url,type:r.type}},
+'worker':async()=>{const u=URL.createObjectURL(new Blob([`onmessage=e=>postMessage({echo:e.data,time:Date.now()})`],{type:'text/javascript'})),w=new Worker(u);const v=await new Promise((r,j)=>{w.onmessage=e=>r(e.data);w.onerror=j;w.postMessage('hello')});w.terminate();URL.revokeObjectURL(u);return v},
+'broadcast-channel':async()=>{const n='sa-'+Math.random(),a=new BroadcastChannel(n),b=new BroadcastChannel(n),v=await new Promise((r,j)=>{const t=setTimeout(()=>j(Error('timeout')),1500);b.onmessage=e=>{clearTimeout(t);r(e.data)};a.postMessage('ok')});a.close();b.close();return v},
+'webgl':()=>{const c=document.createElement('canvas'),g=c.getContext('webgl2')||c.getContext('webgl');if(!g)throw Error('WebGL unavailable');return{version:g.getParameter(g.VERSION),renderer:g.getParameter(g.RENDERER),vendor:g.getParameter(g.VENDOR)}},
+'webgpu':async()=>{const ad=await navigator.gpu.requestAdapter();if(!ad)throw Error('No adapter');return{adapter:true}},
+'compression':async()=>{const b=await new Response(new Blob(['hello '.repeat(100)]).stream().pipeThrough(new CompressionStream('gzip'))).blob();return{compressedBytes:b.size}},
+'permissions':async()=>{const o={};for(const n of['geolocation','notifications','camera','microphone','clipboard-read','clipboard-write'])try{o[n]=(await navigator.permissions.query({name:n})).state}catch{o[n]='query unsupported'}return o},
+'service-worker':async()=>{const r=await navigator.serviceWorker.register('./sw.js');return{scope:r.scope,active:!!r.active,waiting:!!r.waiting,installing:!!r.installing}},
+'orientation':()=>({type:screen.orientation?.type,angle:screen.orientation?.angle,deviceOrientation:'DeviceOrientationEvent'in window,deviceMotion:'DeviceMotionEvent'in window}),
+'contacts':async()=>{if(!navigator.contacts?.select)throw Error('Contact Picker unavailable');return navigator.contacts.select(['name','email','tel'],{multiple:false})},
+'payment':async()=>{if(!window.PaymentRequest)throw Error('Payment Request unavailable');return{supported:true,note:'No payment UI is launched by this lab'}},
+'webauthn':async()=>({supported:!!window.PublicKeyCredential,conditional:await PublicKeyCredential?.isConditionalMediationAvailable?.().catch(()=>false)||false}),
+'performance':()=>{const n=performance.getEntriesByType('navigation')[0];return n?{type:n.type,duration:n.duration,transferSize:n.transferSize,domComplete:n.domComplete}:{now:performance.now()}},
+'intersection-observer':()=>new Promise(r=>{const d=document.createElement('div');document.body.appendChild(d);const io=new IntersectionObserver(e=>{r({isIntersecting:e[0].isIntersecting,ratio:e[0].intersectionRatio});io.disconnect();d.remove()});io.observe(d)}),
+'clipboard-capability':()=>({clipboard:!!navigator.clipboard,write:!!navigator.clipboard?.writeText,read:!!navigator.clipboard?.readText}),
+'visibility':()=>({visibilityState:document.visibilityState,hidden:document.hidden,hasFocus:document.hasFocus()}),
+'screen-info':()=>({width:screen.width,height:screen.height,availWidth:screen.availWidth,availHeight:screen.availHeight,colorDepth:screen.colorDepth,pixelDepth:screen.pixelDepth,dpr:devicePixelRatio}),
+'device-info':()=>({language:navigator.language,languages:navigator.languages,platform:navigator.platform,hardwareConcurrency:navigator.hardwareConcurrency,deviceMemory:navigator.deviceMemory,maxTouchPoints:navigator.maxTouchPoints,cookieEnabled:navigator.cookieEnabled,onLine:navigator.onLine}),
+'url':()=>({href:location.href,origin:location.origin,protocol:location.protocol}),
+'local-time':()=>({date:new Date().toString(),timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone})
+};
+async function run(n,remote=false){const f=A[n];if(!f)throw Error(`No runnable demo for ${n}; detection only`);log(remote?'remote action':'local action',n);const r=await f();log(n,serial(r));return r}
+const C=[
+['Camera / Microphone','camera',()=>!!navigator.mediaDevices?.getUserMedia,'MediaDevices'],['Screen Capture','screen',()=>!!navigator.mediaDevices?.getDisplayMedia,'getDisplayMedia'],['Image Capture','image-capture',()=> 'ImageCapture'in window,'camera still capture'],['MediaRecorder','media-recorder',()=> 'MediaRecorder'in window,'record media'],['Torch','torch',()=>!!navigator.mediaDevices?.getUserMedia,'camera capability dependent'],['Geolocation','geolocation',()=> 'geolocation'in navigator,'permission gated'],['Clipboard','clipboard-read',()=>!!navigator.clipboard,'read/write varies'],['Notifications','notifications',()=> 'Notification'in window,'permission gated'],['Wake Lock','wake-lock',()=>!!navigator.wakeLock,'screen wake lock'],['Web Share','share',()=>!!navigator.share,'native share sheet'],['File System Access','file-open',()=>!!window.showOpenFilePicker,'file picker'],['Save File Picker','file-save',()=>!!window.showSaveFilePicker,'write selected file'],['Directory Picker','directory',()=>!!window.showDirectoryPicker,'directory access'],['OPFS','opfs',()=>!!navigator.storage?.getDirectory,'origin private filesystem'],['Fullscreen','fullscreen',()=>!!document.documentElement.requestFullscreen,'fullscreen'],['Picture in Picture','pip',()=>!!document.pictureInPictureEnabled,'video PiP'],['Vibration','vibration',()=> 'vibrate'in navigator,'haptics'],['Battery','battery',()=>!!navigator.getBattery,'limited support'],['Network Information','network',()=>!!navigator.connection,'network hints'],['Bluetooth','bluetooth',()=>!!navigator.bluetooth,'Web Bluetooth'],['USB','usb',()=>!!navigator.usb,'WebUSB'],['Serial','serial',()=>!!navigator.serial,'Web Serial'],['HID','hid',()=>!!navigator.hid,'WebHID'],['NFC','nfc',()=> 'NDEFReader'in window,'Web NFC'],['MIDI','midi',()=>!!navigator.requestMIDIAccess,'Web MIDI'],['Gamepad','gamepad',()=>!!navigator.getGamepads,'controllers'],['Web Audio','audio-context',()=>!!(window.AudioContext||window.webkitAudioContext),'audio graph'],['Speech synthesis','speech',()=> 'speechSynthesis'in window,'text to speech'],['Speech recognition','speech-recognition',()=>!!(window.SpeechRecognition||window.webkitSpeechRecognition),'implementation varies'],['Web Crypto','crypto',()=>!!crypto.subtle,'cryptography'],['Storage Manager','storage',()=>!!navigator.storage,'quota/persistence'],['Cache Storage','cache-storage',()=> 'caches'in window,'cache API'],['IndexedDB','indexeddb',()=> 'indexedDB'in window,'structured storage'],['Cookies','cookies',()=> 'cookie'in document,'document cookies'],['Fetch','fetch',()=> 'fetch'in window,'HTTP'],['XMLHttpRequest','xhr',()=> 'XMLHttpRequest'in window,'legacy HTTP'],['WebSocket','websocket',()=> 'WebSocket'in window,'bidirectional socket'],['Server Sent Events','sse',()=> 'EventSource'in window,'server events'],['WebTransport','webtransport',()=> 'WebTransport'in window,'QUIC transport'],['WebRTC','webrtc',()=> 'RTCPeerConnection'in window,'peer networking'],['Workers','worker',()=> 'Worker'in window,'parallel JS'],['SharedWorker','shared-worker',()=> 'SharedWorker'in window,'shared background worker'],['Service Worker','service-worker',()=> 'serviceWorker'in navigator,'offline/background events'],['BroadcastChannel','broadcast-channel',()=> 'BroadcastChannel'in window,'cross-context messaging'],['MessageChannel','message-channel',()=> 'MessageChannel'in window,'message ports'],['Web Locks','web-locks',()=>!!navigator.locks,'cross-tab locks'],['Background Sync','background-sync',()=> 'SyncManager'in window,'service worker sync'],['Periodic Sync','periodic-sync',()=> 'PeriodicSyncManager'in window,'periodic SW sync'],['Background Fetch','background-fetch',()=> 'BackgroundFetchManager'in window,'background downloads'],['Push API','push',()=> 'PushManager'in window,'push messages'],['Badging','badging',()=>!!navigator.setAppBadge,'PWA badges'],['WebGL','webgl',()=>{const c=document.createElement('canvas');return!!(c.getContext('webgl')||c.getContext('webgl2'))},'GPU graphics'],['WebGPU','webgpu',()=>!!navigator.gpu,'GPU compute/graphics'],['Canvas','canvas',()=>!!document.createElement('canvas').getContext,'2D graphics'],['OffscreenCanvas','offscreen',()=> 'OffscreenCanvas'in window,'off-main-thread canvas'],['WebCodecs','webcodecs',()=> 'VideoEncoder'in window||'AudioEncoder'in window,'low-level codecs'],['Media Source','mse',()=> 'MediaSource'in window,'streaming media'],['Encrypted Media','eme',()=>!!navigator.requestMediaKeySystemAccess,'DRM interface'],['Compression Streams','compression',()=> 'CompressionStream'in window,'gzip/deflate'],['Streams','streams',()=> 'ReadableStream'in window,'stream primitives'],['Permissions','permissions',()=>!!navigator.permissions,'permission state'],['Orientation','orientation',()=>!!screen.orientation,'screen orientation'],['Device Motion','device-motion',()=> 'DeviceMotionEvent'in window,'motion sensor event'],['Device Orientation','device-orientation',()=> 'DeviceOrientationEvent'in window,'orientation sensor event'],['Accelerometer','accelerometer',()=> 'Accelerometer'in window,'generic sensor'],['Gyroscope','gyroscope',()=> 'Gyroscope'in window,'generic sensor'],['Magnetometer','magnetometer',()=> 'Magnetometer'in window,'generic sensor'],['Ambient Light','ambient-light',()=> 'AmbientLightSensor'in window,'generic sensor'],['Idle Detection','idle-detection',()=> 'IdleDetector'in window,'permission gated'],['Contacts Picker','contacts',()=>!!navigator.contacts?.select,'user-selected contacts'],['Payment Request','payment',()=> 'PaymentRequest'in window,'payment UI'],['WebAuthn / Passkeys','webauthn',()=> 'PublicKeyCredential'in window,'authentication'],['Credential Management','credentials',()=>!!navigator.credentials,'credentials'],['FedCM','fedcm',()=>!!navigator.credentials,'federated identity surface'],['WebOTP','webotp',()=>!!navigator.credentials,'supported credential type varies'],['Performance','performance',()=> 'performance'in window,'timing'],['PerformanceObserver','perf-observer',()=> 'PerformanceObserver'in window,'metrics observer'],['IntersectionObserver','intersection-observer',()=> 'IntersectionObserver'in window,'visibility'],['ResizeObserver','resize-observer',()=> 'ResizeObserver'in window,'element size observer'],['MutationObserver','mutation-observer',()=> 'MutationObserver'in window,'DOM changes'],['Web Animations','web-animations',()=>!!Element.prototype.animate,'animations'],['View Transitions','view-transitions',()=> 'startViewTransition'in document,'page transitions'],['Navigation API','navigation-api',()=> 'navigation'in window,'navigation control'],['History API','history',()=> 'history'in window,'session history'],['URLPattern','url-pattern',()=> 'URLPattern'in window,'URL matching'],['EyeDropper','eyedropper',()=> 'EyeDropper'in window,'screen color picker'],['Barcode Detection','barcode',()=> 'BarcodeDetector'in window,'barcode/QR detection'],['Shape Detection','face-detection',()=> 'FaceDetector'in window,'experimental'],['Local Font Access','local-fonts',()=> 'queryLocalFonts'in window,'font picker'],['Window Management','window-management',()=>!!window.getScreenDetails,'multi-screen'],['Document PiP','document-pip',()=> 'documentPictureInPicture'in window,'PiP document'],['Screen Wake Lock','wake-lock',()=>!!navigator.wakeLock,'keep display awake'],['Virtual Keyboard','virtual-keyboard',()=>!!navigator.virtualKeyboard,'keyboard control'],['EditContext','edit-context',()=> 'EditContext'in window,'advanced editing'],['Pointer Events','pointer-events',()=> 'PointerEvent'in window,'mouse/touch/pen'],['Touch Events','touch-events',()=> 'TouchEvent'in window,'touch'],['Pointer Lock','pointer-lock',()=> 'pointerLockElement'in document,'relative mouse'],['Drag and Drop','drag-drop',()=> 'DataTransfer'in window,'drag/drop'],['Web Share Target','share-target',()=>true,'manifest feature'],['Media Session','media-session',()=> 'mediaSession'in navigator,'lock-screen media'],['Remote Playback','remote-playback',()=> 'remote'in HTMLMediaElement.prototype,'remote media'],['Presentation API','presentation',()=> 'PresentationRequest'in window,'external display'],['Screen Details','screen-details',()=>!!window.getScreenDetails,'multi-display'],['Content Index','content-index',()=> 'ContentIndex'in window,'offline content index'],['Launch Queue','launch-handler',()=> 'launchQueue'in window,'PWA launch handler'],['File Handling','file-handling',()=> 'LaunchParams'in window,'installed PWA'],['Cookie Store','cookie-store',()=> 'cookieStore'in window,'async cookies'],['Storage Access','storage-access',()=>!!document.requestStorageAccess,'third-party storage'],['Shared Storage','shared-storage',()=> 'sharedStorage'in window,'privacy sandbox'],['Attribution Reporting','attribution',()=> 'attributionSrc'in HTMLAnchorElement.prototype,'privacy ads API'],['Topics API','topics',()=> 'browsingTopics'in document,'privacy ads API'],['Trusted Types','trusted-types',()=> 'trustedTypes'in window,'DOM XSS mitigation'],['Sanitizer','sanitizer',()=> 'Sanitizer'in window,'HTML sanitization'],['Scheduler','scheduler',()=> 'scheduler'in window,'prioritized tasks'],['Compute Pressure','compute-pressure',()=> 'PressureObserver'in window,'system pressure'],['Device Posture','device-posture',()=> 'devicePosture'in navigator,'foldables'],['Web App Install','install-prompt',()=> 'BeforeInstallPromptEvent'in window,'PWA install'],['Clipboard capability','clipboard-capability',()=>!!navigator.clipboard,'diagnostic'],['Page Visibility','visibility',()=> 'visibilityState'in document,'activity state'],['Screen info','screen-info',()=>!!window.screen,'display metadata'],['Device info','device-info',()=>!!window.navigator,'coarse environment'],['URL API','url',()=> 'URL'in window,'URL parsing'],['Intl','local-time',()=> 'Intl'in window,'locale/timezone']
+];
+for(const k of Object.keys(A)){const o=document.createElement('option');o.value=k;o.textContent=k+(sensitive.has(k)?' (approval)':'');$('#remoteAction').appendChild(o)}
+function render(){const q=$('#filter').value.trim().toLowerCase(),root=$('#caps');root.innerHTML='';for(const[name,key,test,note]of C){if(q&&!`${name} ${key} ${note}`.toLowerCase().includes(q))continue;let ok=false;try{ok=!!test()}catch{}const d=document.createElement('div');d.className='cap';d.innerHTML=`<strong>${name}</strong><small>${note}</small><div class="status ${ok?'ok':'bad'}">${ok?'Supported':'Not exposed'}</div>`;if(A[key]){const b=document.createElement('button');b.textContent=sensitive.has(key)?'Test locally (may ask permission)':'Run local test';b.className=sensitive.has(key)?'':'safe';b.onclick=()=>run(key).catch(e=>log(key,'error',e.message));d.appendChild(b)}root.appendChild(d)}}render();$('#filter').oninput=render;$('#rescan').onclick=render;
+if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
 </script>
 </body>
