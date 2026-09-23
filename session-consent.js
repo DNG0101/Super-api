@@ -5,6 +5,9 @@
   const approvalPanel = document.querySelector('#approvalPanel');
   const approveBtn = document.querySelector('#approveBtn');
   const roleText = document.querySelector('#roleText');
+  const hostBtn = document.querySelector('#hostBtn');
+  const controllerBtn = document.querySelector('#controllerBtn');
+  const remoteAction = document.querySelector('#remoteAction');
 
   if (!consent || !approvalPanel || !approveBtn) return;
 
@@ -36,18 +39,30 @@
   `;
   document.head.appendChild(style);
 
+  function relabelActions() {
+    if (!remoteAction) return;
+    for (const option of remoteAction.options) {
+      option.textContent = option.textContent.replace(/^APPROVAL\s*•/i, 'SESSION •');
+    }
+  }
+
   function updateState() {
     const on = consent.checked;
     badge.textContent = on ? 'session control ON' : 'session control OFF';
     badge.classList.toggle('active', on);
     badge.classList.toggle('warn', !on);
-    if (roleText && on) {
-      roleText.textContent = 'Single-session control is authorized. Peer requests run immediately where the browser permits them.';
+    if (roleText) {
+      roleText.textContent = on
+        ? 'Single-session control is authorized. Peer requests run immediately where the browser permits them.'
+        : 'Controlled peer mode. Enable the single session authorization to allow peer API requests.';
     }
+    relabelActions();
   }
 
   consent.addEventListener('change', updateState);
+  hostBtn?.addEventListener('click', updateState);
   updateState();
+  relabelActions();
 
   // app.js still classifies sensitive capabilities so the UI can show their
   // risk. When one-session authorization is ON, automatically consume the
@@ -68,7 +83,7 @@
 
   // Revoke app-level authorization when the user explicitly switches away
   // from Controlled-peer mode. It remains active through normal tab changes.
-  document.querySelector('#controllerBtn')?.addEventListener('click', () => {
+  controllerBtn?.addEventListener('click', () => {
     consent.checked = false;
     updateState();
   });
