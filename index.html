@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b1020">
-<meta name="description" content="Comprehensive browser Web API capability lab with consent-gated WebRTC peer control.">
+<meta name="description" content="Comprehensive browser Web API capability lab with one-session WebRTC peer authorization.">
 <link rel="manifest" href="./manifest.webmanifest">
 <title>Super API Peer Lab</title>
 <style>
@@ -18,15 +18,15 @@
   <div class="row"><span id="secureBadge" class="badge">secure context…</span><span id="peerBadge" class="badge"><span id="peerDot" class="dot"></span><span id="peerText">peer disconnected</span></span></div>
 </header>
 <main>
-  <section class="panel notice"><strong>Permission model:</strong> low-risk diagnostics can run automatically after the host enables peer requests. Camera, microphone, screen capture, location, files, clipboard, hardware-device access, contacts, authentication, payment, sensors and similar sensitive capabilities always require a local approval click on the controlled peer, plus any browser/OS permission UI.</section>
+  <section class="panel notice"><strong>Single-session model:</strong> the controlled peer gives one app-level authorization for the current page session. After that, peer API requests are forwarded immediately. The app does not add repeated per-action consent. Browser/OS permission prompts, device pickers, and APIs that require a fresh user gesture remain browser-enforced and cannot be bypassed by JavaScript.</section>
 
   <section class="grid">
     <div class="panel">
-      <h2>1. Peer role</h2>
+      <h2>1. Peer role + one session authorization</h2>
       <div class="row"><button id="hostBtn" class="primary">Controlled peer</button><button id="controllerBtn">Controller peer</button></div>
       <p id="roleText">Choose a role on each device.</p>
-      <label class="row"><input id="allowRequests" type="checkbox"><span>Allow this paired peer to send requests during this session</span></label>
-      <p class="mini">This toggle resets on reload and does not grant browser permissions.</p>
+      <label class="row"><input id="allowRequests" type="checkbox"><span>Authorize this paired peer to run all implemented API actions for this page session</span></label>
+      <p class="mini">This is the only app-level consent. It resets on reload or when you switch this page to Controller mode. Native browser/OS permission rules still apply.</p>
     </div>
     <div class="panel">
       <h2>2. Manual WebRTC pairing</h2>
@@ -37,17 +37,17 @@
     </div>
   </section>
 
-  <section id="approvalPanel" class="panel approval hidden">
-    <h2>Local approval required</h2>
+  <section id="approvalPanel" class="panel approval hidden" aria-live="polite">
+    <h2>Browser action may be required</h2>
     <p id="approvalText"></p>
-    <div class="row"><button id="approveBtn" class="primary">Approve once</button><button id="rejectBtn" class="danger">Reject</button></div>
+    <div class="row"><button id="approveBtn" class="primary">Continue</button><button id="rejectBtn" class="danger">Reject</button></div>
   </section>
 
   <section class="grid">
     <div class="panel">
       <h2>3. Peer command</h2>
-      <div class="row"><select id="remoteAction" class="grow"></select><button id="sendRemote" class="primary">Request on peer</button></div>
-      <p class="mini"><span class="policy safe">AUTO</span> runs automatically after session access. <span class="policy sensitive">APPROVAL</span> waits for the host user.</p>
+      <div class="row"><select id="remoteAction" class="grow"></select><button id="sendRemote" class="primary">Run on peer</button></div>
+      <p class="mini">After session authorization, the app forwards every implemented action automatically. A browser may still reject an API that requires transient local activation or an ungranted native permission.</p>
     </div>
     <div class="panel">
       <h2>Activity log</h2>
@@ -74,5 +74,6 @@
 </main>
 <script src="./catalog.js"></script>
 <script src="./app.js"></script>
+<script src="./session-consent.js"></script>
 </body>
 </html>
