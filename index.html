@@ -76,7 +76,27 @@
 <script src="./peer-hook.js"></script>
 <script src="./app.js"></script>
 <script src="./session-consent.js"></script>
+<script>
+(() => {
+  const NativeMutationObserver = window.MutationObserver;
+  window.__SUPER_API_NATIVE_MUTATION_OBSERVER = NativeMutationObserver;
+  window.MutationObserver = class SuperApiStartupMutationObserver extends NativeMutationObserver {
+    observe(target, options = {}) {
+      if (target?.id === 'catalog' && options.childList && options.subtree) {
+        return super.observe(target, { ...options, subtree: false });
+      }
+      return super.observe(target, options);
+    }
+  };
+})();
+</script>
 <script src="./api-extensions.js"></script>
+<script>
+if (window.__SUPER_API_NATIVE_MUTATION_OBSERVER) {
+  window.MutationObserver = window.__SUPER_API_NATIVE_MUTATION_OBSERVER;
+  delete window.__SUPER_API_NATIVE_MUTATION_OBSERVER;
+}
+</script>
 <script src="./deep-api-tests.js"></script>
 <script src="./session-bootstrap.js"></script>
 <script src="./runtime-surface.js"></script>
