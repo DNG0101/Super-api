@@ -210,10 +210,11 @@
   function render() {
     const q = ($('#runtimeFilter')?.value || '').trim().toLowerCase();
     const summaryEl = $('#runtimeSummary');
-    if (summaryEl) summaryEl.textContent = safe(summary());
+    if (summaryEl) summaryEl.textContent = state.scannedAt ? safe(summary()) : 'Not scanned. Use “Scan every exposed surface” when you want the exhaustive runtime inventory.';
     const root = $('#runtimeResults');
     if (!root) return;
     root.innerHTML='';
+    if (!state.scannedAt) return;
 
     const rows = [];
     for (const c of state.constructors) {
@@ -243,13 +244,13 @@
     const panel=document.createElement('section');panel.id='runtimeSurfacePanel';panel.className='panel';
     panel.innerHTML=`
       <h2>Runtime Web API surface explorer</h2>
-      <p class="mini">The fixed catalog covers specification families. This explorer reflects the actual browser at runtime, including individual interfaces, constructors, methods, accessors, experimental APIs and vendor-specific surfaces. Reflection does not invoke getters while scanning.</p>
+      <p class="mini">The fixed catalog covers specification families. This explorer reflects the actual browser at runtime, including individual interfaces, constructors, methods, accessors, experimental APIs and vendor-specific surfaces. The exhaustive scan is intentionally user/peer-triggered so opening the application stays lightweight.</p>
       <div class="row">
         <button id="runtimeRescan" class="primary">Scan every exposed surface</button>
         <button id="runtimeExport">Export complete JSON</button>
         <input id="runtimeFilter" class="grow" placeholder="Search interface/method/property…">
       </div>
-      <pre id="runtimeSummary">Not scanned.</pre>
+      <pre id="runtimeSummary">Not scanned. Use “Scan every exposed surface” when needed.</pre>
       <details>
         <summary>Local generic method runner</summary>
         <p class="mini">Runs only on this device from your click. It is intentionally not exposed as arbitrary remote method execution. Browser permission/user-activation rules still apply.</p>
@@ -290,5 +291,4 @@
 
   buildUI();
   installPeerInventoryAction();
-  setTimeout(()=>{scan();installPeerInventoryAction();},300);
 })();
