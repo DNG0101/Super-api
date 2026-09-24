@@ -21,7 +21,7 @@ const grants=Core.createGrantStore();
  console.log('UCOS resource ownership passed');
 
  const processes=Core.createProcessManager(resources);const p=processes.spawn('system.files',{state:'starting'});assert.equal(processes.get(p.pid).state,'starting');assert.equal(processes.suspend(p.pid,'test').state,'suspended');assert.equal(processes.resume(p.pid).state,'running');assert.equal(processes.crash(p.pid,'boom').state,'crashed');assert.equal(processes.resume(p.pid),null);assert.equal(processes.suspend(p.pid),null);assert.equal(processes.setState(p.pid,'running'),null);assert.equal(processes.setState(p.pid,'starting'),null);assert.equal(processes.setState(p.pid,'crashed').state,'crashed');processes.heartbeat(p.pid,{tick:1});assert.equal(processes.get(p.pid).metadata.tick,1);await processes.terminate(p.pid);assert.equal(processes.size(),0);assert.equal(processes.history().length,1);assert.equal(processes.resume(p.pid),null);
- console.log('UCOS process lifecycle transition graph and crash history passed');
+ console.log('UCOS process lifecycle transition guard graph and crash history passed');
 
  await grants.revoke('third.demo','media.camera');
  let calls=0,issued=0,finalized=0,audited=0,promptMeta=null;const broker=Core.createCapabilityBroker({manifests,grants,execute:async c=>{calls++;return c},prompt:async req=>{promptMeta=req.meta;return{state:'granted',scope:'once'}},authorize:async()=>{issued++;return{id:'lease-1'}},finalize:async()=>{finalized++},audit:()=>audited++});
