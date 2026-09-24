@@ -118,10 +118,20 @@
     });
   });
 
-  // Universal Capability OS control plane. The core owns the common registry,
-  // execution-plan and result contracts; the runtime discovers all existing
-  // extension actions and exposes them through one orchestrator.
+  // Existing Universal Capability OS control plane stays intact as the
+  // compatibility execution layer for every current action/module.
   loadModule('./modules/capability-os-core.js', 'data-super-api-capability-core', () => {
-    loadModule('./modules/capability-os.js', 'data-super-api-capability-os');
+    loadModule('./modules/capability-os.js', 'data-super-api-capability-os', () => {
+      // UCOS Fabric v2 is additive: it mirrors the existing registry, adds
+      // provider/transport/node abstractions and a user-facing shell, while the
+      // original Super API Lab and ext:* action bus remain available.
+      loadModule('./modules/ucos-fabric-core.js', 'data-super-api-ucos-fabric-core', () => {
+        loadModule('./modules/ucos-storage.js', 'data-super-api-ucos-storage', () => {
+          loadModule('./modules/ucos-fabric.js', 'data-super-api-ucos-fabric', () => {
+            loadModule('./modules/ucos-shell.js', 'data-super-api-ucos-shell');
+          });
+        });
+      });
+    });
   });
 })();
