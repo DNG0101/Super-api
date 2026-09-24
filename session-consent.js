@@ -99,6 +99,11 @@
     }
   });
 
+  // Network/signal diagnostics stack. It shares the same page-session authorization.
+  loadModule('./modules/network-signal-core.js', 'data-super-api-network-core', () => {
+    loadModule('./modules/network-signal.js', 'data-super-api-network-signal');
+  });
+
   // External/world API stack must load in dependency order.
   loadModule('./modules/universal-core.js', 'data-super-api-universal-core', () => {
     loadModule('./modules/universal-api.js', 'data-super-api-universal-api', () => {
