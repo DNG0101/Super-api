@@ -11,26 +11,21 @@
 
   if (!consent || !approvalPanel || !approveBtn) return;
 
-  // One explicit app-level authorization applies to every peer action for the
-  // lifetime of this page. It is deliberately not persisted across reloads.
   consent.checked = false;
 
   const labelText = consent.parentElement?.querySelector('span');
-  if (labelText) {
-    labelText.textContent = 'Authorize this paired peer to run all implemented API actions for this page session';
-  }
+  if (labelText) labelText.textContent = 'Authorize this paired peer to run all implemented API actions for this page session';
 
   const help = consent.parentElement?.nextElementSibling;
   if (help?.classList?.contains('mini')) {
-    help.textContent = 'One app-level authorization covers all actions until reload/revocation. Browser/OS permission prompts, device pickers, and APIs requiring transient user activation still follow browser rules.';
+    help.textContent = 'One app-level authorization covers all actions until reload/revocation. Browser/OS permission prompts, provider authentication, device pickers, and APIs requiring transient user activation still follow their own rules.';
   }
 
   const badge = document.createElement('span');
   badge.id = 'sessionAuthBadge';
   badge.className = 'badge warn';
   badge.textContent = 'session control OFF';
-  const headerRow = document.querySelector('header .row');
-  headerRow?.prepend(badge);
+  document.querySelector('header .row')?.prepend(badge);
 
   const style = document.createElement('style');
   style.textContent = `
@@ -41,9 +36,7 @@
 
   function relabelActions() {
     if (!remoteAction) return;
-    for (const option of remoteAction.options) {
-      option.textContent = option.textContent.replace(/^APPROVAL\s*•/i, 'SESSION •');
-    }
+    for (const option of remoteAction.options) option.textContent = option.textContent.replace(/^APPROVAL\s*•/i, 'SESSION •');
   }
 
   function updateState() {
@@ -53,7 +46,7 @@
     badge.classList.toggle('warn', !on);
     if (roleText) {
       roleText.textContent = on
-        ? 'Single-session control is authorized. Peer requests run immediately where the browser permits them.'
+        ? 'Single-session control is authorized. Peer requests run immediately where the browser/provider permits them.'
         : 'Controlled peer mode. Enable the single session authorization to allow peer API requests.';
     }
     relabelActions();
@@ -64,50 +57,52 @@
   updateState();
   relabelActions();
 
-  // app.js still classifies sensitive capabilities so the UI can show their
-  // risk. When one-session authorization is ON, automatically consume the
-  // app-level per-action gate. This does not and cannot manufacture browser
-  // user activation or bypass browser/OS permission UI.
   const observer = new MutationObserver(() => {
-    if (!consent.checked) return;
-    if (approvalPanel.classList.contains('hidden')) return;
-
+    if (!consent.checked || approvalPanel.classList.contains('hidden')) return;
     approvalPanel.classList.add('session-forwarding');
     queueMicrotask(() => {
       try { approveBtn.click(); }
       finally { approvalPanel.classList.remove('session-forwarding'); }
     });
   });
-
   observer.observe(approvalPanel, { attributes: true, attributeFilter: ['class'] });
 
-  // Revoke app-level authorization when the user explicitly switches away
-  // from Controlled-peer mode. It remains active through normal tab changes.
   controllerBtn?.addEventListener('click', () => {
     consent.checked = false;
     updateState();
   });
 
   function loadModule(src, marker, onload) {
-    if (document.querySelector(`script[${marker}]`)) return;
+    const selector = `script[${marker}]`;
+    const existing = document.querySelector(selector);
+    if (existing) {
+      if (existing.dataset.superApiReady === 'true') queueMicrotask(() => onload?.());
+      else if (onload) existing.addEventListener('load', onload, { once: true });
+      return existing;
+    }
     const script = document.createElement('script');
     script.src = src;
     script.async = false;
     script.setAttribute(marker, 'true');
-    if (onload) script.addEventListener('load', onload);
+    script.addEventListener('load', () => {
+      script.dataset.superApiReady = 'true';
+      onload?.();
+    }, { once: true });
     script.addEventListener('error', () => console.error(`Super API module failed to load: ${src}`));
     document.head.appendChild(script);
+    return script;
   }
 
-  // Cross-realm Web API RPC layer.
   loadModule('./modules/realm-rpc.js', 'data-super-api-realm-rpc', () => {
     if (roleText && consent.checked) {
       roleText.textContent = 'Single-session control is authorized. Window/Worker/Worklet realm RPC is ready where the browser permits it.';
     }
   });
 
-  // Universal external/API protocol layer. This does not create a second
-  // Super-api consent; provider authentication, CORS and server policies still
-  // remain external requirements.
-  loadModule('./modules/universal-api.js', 'data-super-api-universal-api');
+  // External/world API stack must load in dependency order.
+  loadModule('./modules/universal-core.js', 'data-super-api-universal-core', () => {
+    loadModule('./modules/universal-api.js', 'data-super-api-universal-api', () => {
+      loadModule('./modules/universal-api-v2.js', 'data-super-api-universal-v2');
+    });
+  });
 })();
