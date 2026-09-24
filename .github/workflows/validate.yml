@@ -21,6 +21,8 @@ jobs:
         run: |
           set -euo pipefail
           find . -type f -name '*.js' -not -path './.git/*' -print0 | sort -z | xargs -0 -n1 node --check
+      - name: Capability OS core matrix
+        run: node tests/capability-os-core.test.cjs
       - name: Universal protocol test matrix
         run: node tests/universal-core.test.cjs
       - name: Network and signal test matrix
