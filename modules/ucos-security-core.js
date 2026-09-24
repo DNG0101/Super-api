@@ -28,8 +28,8 @@ function sanitize(input,{redactKeys=['token','secret','password','authorization'
 function createTokenService({defaultTtlMs=30000,maxTtlMs=3600000}={}){
  const tokens=new Map();
  function mint({appId='',capabilityId='',operation='*',nodeId='*',scope='lease',ttlMs=defaultTtlMs,uses=1,metadata={}}={}){
-  const now=Date.now(),ttl=Math.max(1000,Math.min(maxTtlMs,Number(ttlMs)||defaultTtlMs)),token=id('cap');
-  const row={id:token,appId:text(appId),capabilityId:text(capabilityId),operation:text(operation)||'*',nodeId:text(nodeId)||'*',scope:text(scope)||'lease',createdAt:now,expiresAt:now+ttl,usesRemaining:uses===Infinity?Infinity:Math.max(1,Number(uses)||1),revoked:false,metadata:sanitize(metadata)};
+  const now=Date.now(),ttl=Math.max(1000,Math.min(maxTtlMs,Number(ttlMs)||defaultTtlMs)),token=id('cap'),normalizedUses=uses===Infinity?Infinity:Math.max(1,Math.floor(Number(uses)||1));
+  const row={id:token,appId:text(appId),capabilityId:text(capabilityId),operation:text(operation)||'*',nodeId:text(nodeId)||'*',scope:text(scope)||'lease',createdAt:now,expiresAt:now+ttl,usesRemaining:normalizedUses,revoked:false,metadata:sanitize(metadata)};
   tokens.set(token,row);return clone(row)
  }
  function match(row,ctx={}){if(!row||row.revoked)return{valid:false,reason:'token-revoked-or-unknown'};if(Date.now()>row.expiresAt){tokens.delete(row.id);return{valid:false,reason:'token-expired'}};for(const key of ['appId','capabilityId'])if(ctx[key]&&row[key]&&row[key]!==ctx[key])return{valid:false,reason:`token-${key}-mismatch`};for(const key of ['operation','nodeId'])if(ctx[key]&&row[key]&&row[key]!=='*'&&row[key]!==ctx[key])return{valid:false,reason:`token-${key}-mismatch`};if(row.usesRemaining!==Infinity&&row.usesRemaining<=0)return{valid:false,reason:'token-consumed'};return{valid:true,token:clone(row)}}
@@ -57,10 +57,12 @@ function createReplayGuard({windowMs=120000,maxEntries=10000,maxFutureSkewMs=300
 }
 function createAuditLog({limit=1000}={}){
  const rows=[];const listeners=new Set();
- function append(type,data={},severity='info'){const row={id:id('audit'),time:new Date().toISOString(),type:text(type)||'event',severity:text(severity)||'info',data:sanitize(data)};rows.unshift(row);if(rows.length>limit)rows.length=limit;for(const fn of listeners)try{fn(clone(row))}catch{}return clone(row)}
+ function normalizedRow(row={}){const parsed=Date.parse(row.time),time=Number.isFinite(parsed)?new Date(parsed).toISOString():new Date().toISOString();return{id:text(row.id)||id('audit'),time,type:text(row.type)||'event',severity:text(row.severity)||'info',data:sanitize(row.data||{})}}
+ function append(type,data={},severity='info'){const row=normalizedRow({id:id('audit'),time:new Date().toISOString(),type,severity,data});rows.unshift(row);if(rows.length>limit)rows.length=limit;for(const fn of listeners)try{fn(clone(row))}catch{}return clone(row)}
+ function restore(input=[]){const restored=Array.isArray(input)?input.map(normalizedRow).slice(0,limit):[];rows.splice(0,rows.length,...restored);return rows.length}
  function query({type,severity,appId,limit:take=100}={}){return rows.filter(r=>(!type||r.type===type)&&(!severity||r.severity===severity)&&(!appId||r.data?.appId===appId)).slice(0,Math.max(1,Math.min(Number(take)||100,limit))).map(clone)}
  function subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn)}
- return Object.freeze({append,query,subscribe,export:()=>rows.map(clone),clear:()=>{rows.length=0},size:()=>rows.length})
+ return Object.freeze({append,restore,query,subscribe,export:()=>rows.map(clone),clear:()=>{rows.length=0},size:()=>rows.length})
 }
 function createSignedEnvelope(payload,{peerId,nonce=id('nonce'),timestamp=Date.now(),version=5}={}){return{version,type:'ucos:v5-envelope',peerId:text(peerId),nonce:text(nonce),timestamp:Number(timestamp),payload:clone(payload)}}
 function validateSignedEnvelope(env,{expectedPeerId='',replayGuard=null}={}){if(!env||env.type!=='ucos:v5-envelope'||env.version!==5)return{valid:false,reason:'invalid-envelope'};if(expectedPeerId&&env.peerId!==expectedPeerId)return{valid:false,reason:'peer-mismatch'};if(!env.nonce||!Number.isFinite(Number(env.timestamp)))return{valid:false,reason:'invalid-envelope'};if(replayGuard){const r=replayGuard.accept({peerId:env.peerId,nonce:env.nonce,timestamp:env.timestamp});if(!r.accepted)return{valid:false,reason:r.reason}}return{valid:true,envelope:clone(env)}}

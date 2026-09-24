@@ -4,10 +4,14 @@ if(globalThis.SuperApiUCOSStorage)return;
 const memory=new Map();
 const enc=encodeURIComponent;
 const prefix='super-api-ucos:';
+const textEncoder=new TextEncoder(),textDecoder=new TextDecoder();
 const key=(ns,k)=>`${prefix}${enc(ns||'default')}:${enc(k)}`;
 function safeParse(v){try{return JSON.parse(v)}catch{return null}}
 function safeStorage(name){try{return globalThis[name]||null}catch{return null}}
 function structuredCloneSafe(v){try{return structuredClone(v)}catch{try{return JSON.parse(JSON.stringify(v,(_k,x)=>typeof x==='bigint'?String(x):x))}catch{return String(v)}}}
+function hexName(prefix,value){let out=prefix;for(const b of textEncoder.encode(String(value)))out+=b.toString(16).padStart(2,'0');return out}
+function unhexName(prefix,value){const s=String(value||'');if(!s.startsWith(prefix))return null;const hex=s.slice(prefix.length);if(hex.length%2||!/^[0-9a-f]*$/i.test(hex))return null;const bytes=new Uint8Array(hex.length/2);for(let i=0;i<bytes.length;i++)bytes[i]=parseInt(hex.slice(i*2,i*2+2),16);try{return textDecoder.decode(bytes)}catch{return null}}
+function legacySafe(value){const s=String(value);return Boolean(s)&&s!=='.'&&s!=='..'&&s===s.replace(/[^a-z0-9._-]/gi,'_')&&!/[\\/\0]/.test(s)}
 const MemoryStore={
   async get(ns,k){return memory.has(key(ns,k))?structuredCloneSafe(memory.get(key(ns,k))):null},
   async set(ns,k,v){memory.set(key(ns,k),structuredCloneSafe(v));return true},
@@ -32,12 +36,14 @@ const IndexedDBStore={
   async list(ns){const db=await openDb(),p=`${prefix}${enc(ns||'default')}:`;return new Promise((resolve,reject)=>{const tx=db.transaction('kv','readonly'),req=tx.objectStore('kv').getAllKeys();req.onsuccess=()=>resolve(req.result.filter(x=>String(x).startsWith(p)).map(x=>decodeURIComponent(String(x).slice(p.length))).sort());req.onerror=()=>reject(req.error)})}
 };
 async function opfsRoot(){if(!navigator.storage?.getDirectory)throw new Error('OPFS unavailable');return navigator.storage.getDirectory()}
-async function opfsDir(ns,create=true){const root=await opfsRoot();return root.getDirectoryHandle(String(ns||'default').replace(/[^a-z0-9._-]/gi,'_'),{create})}
+async function opfsDir(ns,create=true,{legacy=false}={}){const root=await opfsRoot(),raw=String(ns||'default'),name=legacy?raw.replace(/[^a-z0-9._-]/gi,'_'):hexName('n-',raw);return root.getDirectoryHandle(name,{create})}
+async function opfsRead(ns,k,{legacy=false}={}){const dir=await opfsDir(ns,false,{legacy}),name=legacy?String(k):hexName('k-',k),h=await dir.getFileHandle(name,{create:false}),f=await h.getFile();return safeParse(await f.text())}
+async function opfsDeleteOne(ns,k,{legacy=false}={}){try{const dir=await opfsDir(ns,false,{legacy});await dir.removeEntry(legacy?String(k):hexName('k-',k));return true}catch(e){if(e?.name==='NotFoundError')return false;throw e}}
 const OPFSStore={
-  async get(ns,k){try{const dir=await opfsDir(ns,false),h=await dir.getFileHandle(String(k),{create:false}),f=await h.getFile();return safeParse(await f.text())}catch(e){if(e?.name==='NotFoundError')return null;throw e}},
-  async set(ns,k,v){const dir=await opfsDir(ns,true),h=await dir.getFileHandle(String(k),{create:true}),w=await h.createWritable();try{await w.write(JSON.stringify(structuredCloneSafe(v)));await w.close()}catch(e){try{await w.abort?.()}catch{}throw e}return true},
-  async delete(ns,k){try{const dir=await opfsDir(ns,false);await dir.removeEntry(String(k));return true}catch(e){if(e?.name==='NotFoundError')return false;throw e}},
-  async list(ns){try{const dir=await opfsDir(ns,false),out=[];for await(const[name]of dir.entries())out.push(name);return out.sort()}catch(e){if(e?.name==='NotFoundError')return[];throw e}}
+  async get(ns,k){try{return await opfsRead(ns,k)}catch(e){if(e?.name!=='NotFoundError')throw e}if(!legacySafe(ns||'default')||!legacySafe(k))return null;try{const value=await opfsRead(ns,k,{legacy:true});if(value!==null)try{await OPFSStore.set(ns,k,value)}catch{}return value}catch(e){if(e?.name==='NotFoundError')return null;throw e}},
+  async set(ns,k,v){const dir=await opfsDir(ns,true),h=await dir.getFileHandle(hexName('k-',k),{create:true}),w=await h.createWritable();try{await w.write(JSON.stringify(structuredCloneSafe(v)));await w.close()}catch(e){try{await w.abort?.()}catch{}throw e}return true},
+  async delete(ns,k){let removed=await opfsDeleteOne(ns,k);if(legacySafe(ns||'default')&&legacySafe(k))removed=await opfsDeleteOne(ns,k,{legacy:true})||removed;return removed},
+  async list(ns){const out=new Set();try{const dir=await opfsDir(ns,false);for await(const[name,h]of dir.entries()){if(h.kind!=='file')continue;const decoded=unhexName('k-',name);if(decoded!==null)out.add(decoded)}}catch(e){if(e?.name!=='NotFoundError')throw e}if(legacySafe(ns||'default'))try{const dir=await opfsDir(ns,false,{legacy:true});for await(const[name,h]of dir.entries())if(h.kind==='file'&&legacySafe(name))out.add(name)}catch(e){if(e?.name!=='NotFoundError')throw e}return[...out].sort()}
 };
 const adapters=new Map([['memory',MemoryStore],['session',SessionStore],['local',LocalStore],['indexeddb',IndexedDBStore],['opfs',OPFSStore]]);
 const available={memory:()=>true,session:()=>!!sessionStoreRef,local:()=>!!localStoreRef,indexeddb:()=>!!globalThis.indexedDB,opfs:()=>!!navigator.storage?.getDirectory};
@@ -51,7 +57,7 @@ const api=Object.freeze({adapters,candidates,
   async set(ns,k,v,options={}){return setAcross(ns,k,v,options.preferred)},
   async delete(ns,k,options={}){return deleteAcross(ns,k,options.preferred)},
   async list(ns,options={}){return listAcross(ns,options.preferred)},
-  health(){return{memory:true,session:available.session(),local:available.local(),indexeddb:available.indexeddb(),opfs:available.opfs(),preference:['opfs','indexeddb','local','memory'],fallbackReads:true,writeThrough:true,deleteAcrossBackends:true}}
+  health(){return{memory:true,session:available.session(),local:available.local(),indexeddb:available.indexeddb(),opfs:available.opfs(),preference:['opfs','indexeddb','local','memory'],fallbackReads:true,writeThrough:true,deleteAcrossBackends:true,opfsCollisionSafeNames:true}}
 });
 globalThis.SuperApiUCOSStorage=api;
 })();
