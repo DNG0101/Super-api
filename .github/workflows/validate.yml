@@ -31,6 +31,8 @@ jobs:
         run: node tests/ucos-security-core.test.cjs
       - name: UCOS workflow core matrix
         run: node tests/ucos-workflow-core.test.cjs
+      - name: UCOS v5 system app UI contract
+        run: node tests/ucos-v5-ui-contract.test.cjs
       - name: Capability OS architecture audit
         run: node .github/scripts/capability-os-audit.mjs
       - name: Universal protocol test matrix
