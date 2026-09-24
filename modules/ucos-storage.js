@@ -6,6 +6,8 @@ const enc=encodeURIComponent;
 const prefix='super-api-ucos:';
 const key=(ns,k)=>`${prefix}${enc(ns||'default')}:${enc(k)}`;
 function safeParse(v){try{return JSON.parse(v)}catch{return null}}
+function safeStorage(name){try{return globalThis[name]||null}catch{return null}}
+function structuredCloneSafe(v){try{return structuredClone(v)}catch{try{return JSON.parse(JSON.stringify(v,(_k,x)=>typeof x==='bigint'?String(x):x))}catch{return String(v)}}}
 const MemoryStore={
   async get(ns,k){return memory.has(key(ns,k))?memory.get(key(ns,k)):null},
   async set(ns,k,v){memory.set(key(ns,k),structuredCloneSafe(v));return true},
@@ -13,14 +15,15 @@ const MemoryStore={
   async list(ns){const p=`${prefix}${enc(ns||'default')}:`;return [...memory.keys()].filter(k=>k.startsWith(p)).map(k=>decodeURIComponent(k.slice(p.length)))}
 };
 function webStorage(store){return{
-  async get(ns,k){const raw=store?.getItem?.(key(ns,k));return raw==null?null:safeParse(raw)},
-  async set(ns,k,v){store?.setItem?.(key(ns,k),JSON.stringify(structuredCloneSafe(v)));return true},
-  async delete(ns,k){store?.removeItem?.(key(ns,k));return true},
-  async list(ns){const p=`${prefix}${enc(ns||'default')}:`,out=[];for(let i=0;i<(store?.length||0);i++){const x=store.key(i);if(x?.startsWith(p))out.push(decodeURIComponent(x.slice(p.length)));}return out.sort()}
+  async get(ns,k){if(!store)throw new Error('Web Storage unavailable');const raw=store.getItem(key(ns,k));return raw==null?null:safeParse(raw)},
+  async set(ns,k,v){if(!store)throw new Error('Web Storage unavailable');store.setItem(key(ns,k),JSON.stringify(structuredCloneSafe(v)));return true},
+  async delete(ns,k){if(!store)throw new Error('Web Storage unavailable');store.removeItem(key(ns,k));return true},
+  async list(ns){if(!store)throw new Error('Web Storage unavailable');const p=`${prefix}${enc(ns||'default')}:`,out=[];for(let i=0;i<store.length;i++){const x=store.key(i);if(x?.startsWith(p))out.push(decodeURIComponent(x.slice(p.length)));}return out.sort()}
 }}
-function structuredCloneSafe(v){try{return structuredClone(v)}catch{try{return JSON.parse(JSON.stringify(v,(_k,x)=>typeof x==='bigint'?String(x):x))}catch{return String(v)}}}
-const SessionStore=webStorage(globalThis.sessionStorage);
-const LocalStore=webStorage(globalThis.localStorage);
+const sessionStoreRef=safeStorage('sessionStorage');
+const localStoreRef=safeStorage('localStorage');
+const SessionStore=webStorage(sessionStoreRef);
+const LocalStore=webStorage(localStoreRef);
 function openDb(){return new Promise((resolve,reject)=>{if(!globalThis.indexedDB)return reject(new Error('IndexedDB unavailable'));const req=indexedDB.open('super-api-ucos',1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('kv'))db.createObjectStore('kv')};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('IndexedDB open failed'))})}
 const IndexedDBStore={
   async get(ns,k){const db=await openDb();return new Promise((resolve,reject)=>{const tx=db.transaction('kv','readonly');const req=tx.objectStore('kv').get(key(ns,k));req.onsuccess=()=>resolve(req.result??null);req.onerror=()=>reject(req.error)})},
@@ -37,14 +40,16 @@ const OPFSStore={
   async list(ns){try{const dir=await opfsDir(ns,false),out=[];for await(const [name] of dir.entries())out.push(name);return out.sort()}catch(e){if(e?.name==='NotFoundError')return[];throw e}}
 };
 const adapters=new Map([['memory',MemoryStore],['session',SessionStore],['local',LocalStore],['indexeddb',IndexedDBStore],['opfs',OPFSStore]]);
-function pick(preferred){for(const id of preferred||['opfs','indexeddb','local','memory']){const a=adapters.get(id);if(a)return{id,adapter:a}}return{id:'memory',adapter:MemoryStore}}
+const available={memory:()=>true,session:()=>!!sessionStoreRef,local:()=>!!localStoreRef,indexeddb:()=>!!globalThis.indexedDB,opfs:()=>!!navigator.storage?.getDirectory};
+function candidates(preferred){const order=Array.isArray(preferred)&&preferred.length?preferred:['opfs','indexeddb','local','memory'];return order.filter((id,index)=>order.indexOf(id)===index&&adapters.has(id)&&available[id]?.()).map(id=>({id,adapter:adapters.get(id)}))}
+async function perform(method,args,preferred){let lastError=null;for(const{adapter}of candidates(preferred)){try{return await adapter[method](...args)}catch(e){lastError=e}}if(lastError)throw lastError;throw new Error(`No storage adapter available for ${method}`)}
 const api=Object.freeze({
   adapters,
-  async get(ns,k,options={}){const{id,adapter}=pick(options.preferred);try{return await adapter.get(ns,k)}catch(e){if(id!=='memory')return MemoryStore.get(ns,k);throw e}},
-  async set(ns,k,v,options={}){const{id,adapter}=pick(options.preferred);try{return await adapter.set(ns,k,v)}catch(e){if(id!=='memory')return MemoryStore.set(ns,k,v);throw e}},
-  async delete(ns,k,options={}){const{id,adapter}=pick(options.preferred);try{return await adapter.delete(ns,k)}catch(e){if(id!=='memory')return MemoryStore.delete(ns,k);throw e}},
-  async list(ns,options={}){const{id,adapter}=pick(options.preferred);try{return await adapter.list(ns)}catch(e){if(id!=='memory')return MemoryStore.list(ns);throw e}},
-  health(){return{memory:true,session:!!globalThis.sessionStorage,local:!!globalThis.localStorage,indexeddb:!!globalThis.indexedDB,opfs:!!navigator.storage?.getDirectory}}
+  async get(ns,k,options={}){return perform('get',[ns,k],options.preferred)},
+  async set(ns,k,v,options={}){return perform('set',[ns,k,v],options.preferred)},
+  async delete(ns,k,options={}){return perform('delete',[ns,k],options.preferred)},
+  async list(ns,options={}){return perform('list',[ns],options.preferred)},
+  health(){return{memory:true,session:available.session(),local:available.local(),indexeddb:available.indexeddb(),opfs:available.opfs(),preference:['opfs','indexeddb','local','memory']}}
 });
 globalThis.SuperApiUCOSStorage=api;
 })();
