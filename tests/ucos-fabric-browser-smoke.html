@@ -3,7 +3,7 @@
 <body>
 <button id="hostBtn" class="primary">host</button><button id="controllerBtn">controller</button><input id="allowRequests" type="checkbox" checked>
 <select id="remoteAction"><option value="environment-info">Environment</option><option value="ext:test">Extension test</option></select>
-<main><section id="legacyLab">legacy lab preserved</section></main><pre id="result">running</pre>
+<main><section id="legacyLab">legacy lab preserved</section></main><div id="sandboxMount"></div><pre id="result">running</pre>
 <script src="../modules/capability-os-core.js"></script>
 <script>
 window.__superApiTrackedChannels=new Set();
@@ -20,11 +20,21 @@ window.SUPER_API_EXT_HANDLE=()=>{};
 <script src="../modules/ucos-fabric-core.js"></script>
 <script src="../modules/ucos-storage.js"></script>
 <script src="../modules/ucos-fabric.js"></script>
+<script src="../modules/ucos-runtime-core.js"></script>
+<script src="../modules/ucos-vfs.js"></script>
+<script src="../modules/ucos-workflow-core.js"></script>
+<script src="../modules/ucos-workflows.js"></script>
+<script src="../modules/ucos-runtime.js"></script>
 <script src="../modules/ucos-shell.js"></script>
+<script src="../modules/ucos-v4-integration.js"></script>
 <script>
 (async()=>{
  try{
   if(!window.SuperApiUCOS)throw new Error('SuperApiUCOS missing');
+  if(!window.SuperApiUCOSRuntime)throw new Error('UCOS runtime missing');
+  if(!window.SuperApiUCOSVFS)throw new Error('UCOS VFS missing');
+  if(!window.SuperApiUCOSWorkflows)throw new Error('UCOS workflows missing');
+  if(!window.SuperApiUCOSV4)throw new Error('UCOS v4 integration missing');
   if(!document.querySelector('#ucosOS'))throw new Error('UCOS full-screen shell missing');
   if(!document.body.classList.contains('ucos-os-active'))throw new Error('UCOS shell did not become primary viewport');
   if(!document.querySelector('#ucosDesktop'))throw new Error('UCOS desktop missing');
@@ -37,7 +47,46 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   if(h.transports.length<2)throw new Error('transports missing');
   const env=await SuperApiUCOS.execute({capabilityId:'action:environment-info',operation:'execute',mode:'local'});
   if(!env.ok||!env.result)throw new Error('local provider execution failed');
-  document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS';
+
+  class FakeChannel extends EventTarget{
+   constructor(name){super();this.name=name;this.readyState='open';this.sent=[]}
+   send(payload){const msg=JSON.parse(payload);this.sent.push(msg);if(msg.type==='request')queueMicrotask(()=>this.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'result',id:msg.id,result:{servedBy:this.name}})})))}
+  }
+  const a=new FakeChannel('peer-a-channel'),b=new FakeChannel('peer-b-channel');
+  window.__superApiTrackedChannels.add(a);window.__superApiTrackedChannels.add(b);
+  a.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:hello',node:{id:'peer-a',label:'Peer A',kind:'browser',online:true}})}));
+  b.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:hello',node:{id:'peer-b',label:'Peer B',kind:'browser',online:true}})}));
+  for(const [ch,id,label] of [[a,'peer-a','Peer A'],[b,'peer-b','Peer B']])ch.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:advertise',node:{id,label,kind:'browser',online:true,capabilities:['action:ext:test'],capabilityDetails:[{id:'action:ext:test',domain:'diagnostics',operations:['execute']}]}})}));
+  if(SuperApiUCOS.channelForNode('peer-a')!==a||SuperApiUCOS.channelForNode('peer-b')!==b)throw new Error('peer-specific channel mapping failed');
+  const remote=await SuperApiUCOS.execute({capabilityId:'action:ext:test',operation:'execute',mode:'peer',targetNodeId:'peer-a'});
+  if(remote.result?.servedBy!=='peer-a-channel')throw new Error('targetNodeId was not routed to the requested peer');
+
+  await SuperApiUCOSRuntime.ready;
+  if(SuperApiUCOSRuntime.manifests.size()<10)throw new Error('system app manifests not registered');
+  await SuperApiUCOSVFS.init();
+  await SuperApiUCOSVFS.writeText('/home/smoke.txt','ucos-v4');
+  if(await SuperApiUCOSVFS.readText('/home/smoke.txt')!=='ucos-v4')throw new Error('VFS read/write failed');
+  await SuperApiUCOSVFS.copy('/home/smoke.txt','/tmp/smoke-copy.txt');
+  if(!(await SuperApiUCOSVFS.stat('/tmp/smoke-copy.txt')))throw new Error('VFS copy failed');
+  await SuperApiUCOSVFS.move('/tmp/smoke-copy.txt','/home/moved.txt');
+  if(!(await SuperApiUCOSVFS.stat('/home/moved.txt')))throw new Error('VFS move failed');
+  await SuperApiUCOSVFS.remove('/home/smoke.txt');await SuperApiUCOSVFS.remove('/home/moved.txt');
+
+  const flow={id:'browser-smoke',steps:[{id:'a',type:'set',key:'ok',value:true},{id:'b',type:'condition',dependsOn:['a'],left:'${vars.ok}',operator:'eq',right:true}]};
+  const run=await SuperApiUCOSWorkflows.run(flow,{});if(run.state!=='success')throw new Error('workflow execution failed');
+
+  await SuperApiUCOSRuntime.installManifest({id:'sandbox.test',name:'Sandbox Test',runtime:'sandbox',entry:'tests/fixtures/ucos-sandbox-app.js',capabilities:['action:environment-info','system.vfs','system.workflow']});
+  await SuperApiUCOSRuntime.grants.set('sandbox.test','action:environment-info',{state:'granted',scope:'once'});
+  const mount=document.querySelector('#sandboxMount');
+  let handle;await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('sandbox app did not become ready')),5000);handle=SuperApiUCOSRuntime.attachSandbox('sandbox.test',mount,{onReady:()=>{clearTimeout(timer);resolve()},onCrash:m=>{clearTimeout(timer);reject(new Error(m.error||'sandbox crashed'))}})});
+  if(await SuperApiUCOSVFS.readText('/apps/data/sandbox.test/note.txt')!=='sandbox-ok')throw new Error('sandbox private VFS IPC failed');
+  if((await SuperApiUCOSRuntime.grants.check('sandbox.test','action:environment-info')).state!=='prompt')throw new Error('once capability grant was not consumed');
+  if(!SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid&&p.state==='running'))throw new Error('sandbox process manager state missing');
+  await handle.close();await new Promise(r=>setTimeout(r,0));
+  if(SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid))throw new Error('sandbox process/resource cleanup failed');
+  await SuperApiUCOSVFS.remove('/apps/data/sandbox.test',{recursive:true});await SuperApiUCOSRuntime.uninstall('sandbox.test');
+
+  document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS UCOS_V4_BROWSER_PASS';
  }catch(error){document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_FAIL '+error.message;throw error}
 })();
 </script>

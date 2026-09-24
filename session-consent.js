@@ -99,36 +99,41 @@
     }
   });
 
-  // Network/signal diagnostics stack. It shares the same page-session authorization.
   loadModule('./modules/network-signal-core.js', 'data-super-api-network-core', () => {
     loadModule('./modules/network-signal.js', 'data-super-api-network-signal');
   });
 
-  // Wireless/radio stack. It inventories every major radio family, runs the
-  // browser-exposed surfaces, and labels non-exposed/raw-radio technologies
-  // explicitly instead of pretending the browser can access them.
   loadModule('./modules/wireless-radio-core.js', 'data-super-api-wireless-core', () => {
     loadModule('./modules/wireless-radio.js', 'data-super-api-wireless-radio');
   });
 
-  // External/world API stack must load in dependency order.
   loadModule('./modules/universal-core.js', 'data-super-api-universal-core', () => {
     loadModule('./modules/universal-api.js', 'data-super-api-universal-api', () => {
       loadModule('./modules/universal-api-v2.js', 'data-super-api-universal-v2');
     });
   });
 
-  // Existing Universal Capability OS control plane stays intact as the
-  // compatibility execution layer for every current action/module.
+  // UCOS v4 keeps the existing Capability OS and Lab as the compatibility
+  // provider while adding an application runtime, broker, VFS and workflow
+  // services above the fabric. The dependency order here is intentional.
   loadModule('./modules/capability-os-core.js', 'data-super-api-capability-core', () => {
     loadModule('./modules/capability-os.js', 'data-super-api-capability-os', () => {
-      // UCOS Fabric v2 is additive: it mirrors the existing registry, adds
-      // provider/transport/node abstractions and a user-facing shell, while the
-      // original Super API Lab and ext:* action bus remain available.
       loadModule('./modules/ucos-fabric-core.js', 'data-super-api-ucos-fabric-core', () => {
         loadModule('./modules/ucos-storage.js', 'data-super-api-ucos-storage', () => {
           loadModule('./modules/ucos-fabric.js', 'data-super-api-ucos-fabric', () => {
-            loadModule('./modules/ucos-shell.js', 'data-super-api-ucos-shell');
+            loadModule('./modules/ucos-runtime-core.js', 'data-super-api-ucos-runtime-core', () => {
+              loadModule('./modules/ucos-vfs.js', 'data-super-api-ucos-vfs', () => {
+                loadModule('./modules/ucos-workflow-core.js', 'data-super-api-ucos-workflow-core', () => {
+                  loadModule('./modules/ucos-workflows.js', 'data-super-api-ucos-workflows', () => {
+                    loadModule('./modules/ucos-runtime.js', 'data-super-api-ucos-runtime', () => {
+                      loadModule('./modules/ucos-shell.js', 'data-super-api-ucos-shell', () => {
+                        loadModule('./modules/ucos-v4-integration.js', 'data-super-api-ucos-v4');
+                      });
+                    });
+                  });
+                });
+              });
+            });
           });
         });
       });
