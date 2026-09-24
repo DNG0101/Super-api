@@ -7,7 +7,10 @@ if(globalThis.SuperApiUCOS)return;
 const capabilities=Core.createCapabilityRegistry();
 const providers=Core.createProviderRegistry();
 const transports=Core.createTransportRegistry();
-const pending=new Map();
+const pendingPings=new Map();
+const pendingRequests=new Map();
+const nodeChannels=new Map();
+const channelNodes=new WeakMap();
 const events=new EventTarget();
 const started=performance.now();
 const telemetry=[];
@@ -16,36 +19,22 @@ let channelSetInstalled=false;
 let observedSet=null;
 let actionObserver=null;
 
-function sessionNodeId(){
-  const k='super-api-ucos-node-id';
-  try{let v=sessionStorage.getItem(k);if(!v){v=Core.id('node');sessionStorage.setItem(k,v)}return v}catch{return Core.id('node')}
-}
+function sessionNodeId(){const k='super-api-ucos-node-id';try{let v=sessionStorage.getItem(k);if(!v){v=Core.id('node');sessionStorage.setItem(k,v)}return v}catch{return Core.id('node')}}
 const localNodeId=sessionNodeId();
 const nodes=Core.createNodeRegistry({id:localNodeId,label:`This device • ${navigator.platform||'Browser'}`,kind:'browser',local:true,online:true,metadata:{userAgent:navigator.userAgent,language:navigator.language}});
 const clone=Core.clone;
-function emit(type,detail){events.dispatchEvent(new CustomEvent(type,{detail:clone(detail)}));}
-function record(row){telemetry.unshift({...clone(row),time:new Date().toISOString()});if(telemetry.length>MAX_TELEMETRY)telemetry.length=MAX_TELEMETRY;emit('telemetry',row);}
-function secure(){return globalThis.isSecureContext===true;}
-function isHost(){const h=document.querySelector('#hostBtn'),c=document.querySelector('#controllerBtn');return !!h?.classList.contains('primary')&&!c?.classList.contains('primary');}
-function authorized(){return Boolean(document.querySelector('#allowRequests')?.checked);}
-function openChannels(){return[...(globalThis.__superApiTrackedChannels||[])].filter(ch=>ch?.readyState==='open');}
-function currentChannel(){const list=openChannels();return list[list.length-1]||null;}
-function actionName(capability){return capability?.metadata?.action||String(capability?.id||'').replace(/^action:/,'');}
-function syncCapabilities(notify=false){
-  CapOS.discoverActions?.();
-  for(const c of CapOS.catalog?.()||[])capabilities.register({...c,status:'implemented',metadata:{...(c.metadata||{}),compatibilitySource:'SuperApiCapabilityOS'}});
-  const list=capabilities.export();
-  nodes.upsert({...(nodes.get(localNodeId)||{}),id:localNodeId,local:true,online:navigator.onLine,capabilities:list.map(c=>c.id),capabilityDetails:list,lastSeen:Date.now()});
-  if(notify)emit('capabilities',capabilities.summary());
-  return list;
-}
+function emit(type,detail){events.dispatchEvent(new CustomEvent(type,{detail:clone(detail)}))}
+function record(row){telemetry.unshift({...clone(row),time:new Date().toISOString()});if(telemetry.length>MAX_TELEMETRY)telemetry.length=MAX_TELEMETRY;emit('telemetry',row)}
+function secure(){return globalThis.isSecureContext===true}
+function isHost(){const h=document.querySelector('#hostBtn'),c=document.querySelector('#controllerBtn');return!!h?.classList.contains('primary')&&!c?.classList.contains('primary')}
+function authorized(){return Boolean(document.querySelector('#allowRequests')?.checked)}
+function openChannels(){return[...(globalThis.__superApiTrackedChannels||[])].filter(ch=>ch?.readyState==='open')}
+function currentChannel(){const list=openChannels();return list[list.length-1]||null}
+function channelForNode(nodeId){return nodeChannels.get(String(nodeId||''))||null}
+function actionName(capability){return capability?.metadata?.action||String(capability?.id||'').replace(/^action:/,'')}
+function syncCapabilities(notify=false){CapOS.discoverActions?.();for(const c of CapOS.catalog?.()||[])capabilities.register({...c,status:'implemented',metadata:{...(c.metadata||{}),compatibilitySource:'SuperApiCapabilityOS'}});const list=capabilities.export();nodes.upsert({...(nodes.get(localNodeId)||{}),id:localNodeId,local:true,online:navigator.onLine,capabilities:list.map(c=>c.id),capabilityDetails:list,lastSeen:Date.now()});if(notify)emit('capabilities',capabilities.summary());return list}
 
-async function probeMedia(constraints){
-  const stream=await navigator.mediaDevices.getUserMedia(constraints);
-  const result={mediaProbe:true,tracks:stream.getTracks().map(t=>({kind:t.kind,label:t.label,readyState:t.readyState,enabled:t.enabled,muted:t.muted})),stopped:true,note:'UCOS basic provider performs a bounded capability probe. Use the original Lab media panel for persistent preview or peer streaming.'};
-  for(const track of stream.getTracks())try{track.stop()}catch{}
-  return result;
-}
+async function probeMedia(constraints){const stream=await navigator.mediaDevices.getUserMedia(constraints);const result={mediaProbe:true,tracks:stream.getTracks().map(t=>({kind:t.kind,label:t.label,readyState:t.readyState,enabled:t.enabled,muted:t.muted})),stopped:true,note:'UCOS basic provider performs a bounded capability probe. Use the original Lab media panel for persistent preview or peer streaming.'};for(const track of stream.getTracks())try{track.stop()}catch{}return result}
 const nativeBasic=new Map([
  ['environment-info',async()=>({secureContext:secure(),online:navigator.onLine,language:navigator.language,languages:navigator.languages,platform:navigator.platform,hardwareConcurrency:navigator.hardwareConcurrency,maxTouchPoints:navigator.maxTouchPoints,visibility:document.visibilityState,url:location.href})],
  ['storage-estimate',async()=>{if(!navigator.storage?.estimate)throw new Error('StorageManager.estimate unavailable');const x=await navigator.storage.estimate();return{usage:x.usage,quota:x.quota,usageDetails:x.usageDetails,persisted:await navigator.storage.persisted?.()}}],
@@ -56,117 +45,37 @@ const nativeBasic=new Map([
  ['geolocation',async()=>new Promise((resolve,reject)=>navigator.geolocation?.getCurrentPosition(p=>resolve({latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy,timestamp:p.timestamp}),reject,{enableHighAccuracy:true,timeout:12000})||reject(new Error('Geolocation unavailable')))],
  ['clipboard-read',async()=>({text:await navigator.clipboard.readText()})],
  ['clipboard-write',async args=>{await navigator.clipboard.writeText(String(args?.text??`Super API UCOS ${new Date().toISOString()}`));return{written:true}}],
- ['camera',async()=>probeMedia({video:true,audio:false})],
- ['microphone',async()=>probeMedia({audio:true,video:false})],
+ ['camera',async()=>probeMedia({video:true,audio:false})],['microphone',async()=>probeMedia({audio:true,video:false})],
  ['file-open',async()=>{if(globalThis.showOpenFilePicker){const[h]=await showOpenFilePicker();const f=await h.getFile();return{name:f.name,size:f.size,type:f.type,lastModified:f.lastModified}}const input=document.createElement('input');input.type='file';return new Promise((resolve,reject)=>{input.onchange=()=>{const f=input.files?.[0];f?resolve({name:f.name,size:f.size,type:f.type,lastModified:f.lastModified}):reject(new Error('No file selected'))};input.click()})}],
  ['directory',async()=>{if(!globalThis.showDirectoryPicker)throw new Error('Directory picker unavailable');const h=await showDirectoryPicker();return{name:h.name,kind:h.kind}}],
  ['notifications',async()=>({permission:await Notification.requestPermission()})],
  ['share',async args=>{if(!navigator.share)throw new Error('Web Share unavailable');await navigator.share({title:args?.title||'Super API UCOS',text:args?.text||'Universal Capability Fabric',url:args?.url||location.href});return{shared:true}}],
  ['vibration',async args=>({accepted:Boolean(navigator.vibrate?.(args?.pattern||100))})]
 ]);
+providers.register({id:'browser-native-basic',label:'Browser Native Provider',priority:20,local:true,supports(capability){return nativeBasic.has(actionName(capability))},async execute(capability,command){const fn=nativeBasic.get(actionName(capability));if(!fn)throw new Error('Native basic adapter unavailable');return fn(command.args||{})},health:()=>({available:true,actions:[...nativeBasic.keys()]})});
+providers.register({id:'legacy-extension-local',label:'Existing extension action bus',priority:50,local:true,supports(capability){return actionName(capability).startsWith('ext:')&&typeof globalThis.SUPER_API_EXT_HANDLE==='function'},execute:async(capability,command)=>{const env=await CapOS.execute({capabilityId:capability.id,operation:'execute',args:command.args||{},mode:'local',meta:command.meta||{}});return env.result},health:()=>({available:typeof globalThis.SUPER_API_EXT_HANDLE==='function'})});
 
-providers.register({
- id:'browser-native-basic',label:'Browser Native Provider',priority:20,local:true,
- supports(capability){return nativeBasic.has(actionName(capability));},
- async execute(capability,command){const fn=nativeBasic.get(actionName(capability));if(!fn)throw new Error('Native basic adapter unavailable');return fn(command.args||{})},
- health:()=>({available:true,actions:[...nativeBasic.keys()]})
-});
-providers.register({
- id:'legacy-extension-local',label:'Existing extension action bus',priority:50,local:true,
- supports(capability){return actionName(capability).startsWith('ext:')&&typeof globalThis.SUPER_API_EXT_HANDLE==='function';},
- execute:async(capability,command)=>{const env=await CapOS.execute({capabilityId:capability.id,operation:'execute',args:command.args||{},mode:'local',meta:command.meta||{}});return env.result},
- health:()=>({available:typeof globalThis.SUPER_API_EXT_HANDLE==='function'})
-});
-
-transports.register({
- id:'webrtc-compat',label:'Existing Super API WebRTC DataChannel',kind:'webrtc',priority:10,
- available:()=>Boolean(currentChannel()),
- async request(command){const capability=capabilities.get(command.capabilityId);if(!capability)throw new Error(`Unknown capability ${command.capabilityId}`);const env=await CapOS.execute({capabilityId:capability.id,operation:'execute',args:command.args||{},mode:'peer',meta:command.meta||{}});return env.result},
- notify(message){const ch=currentChannel();if(!ch)throw new Error('No open paired-peer data channel');ch.send(JSON.stringify(message));return true;}
-});
+function awaitRequest(channel,id,timeout=30000){if(pendingRequests.has(id))return Promise.reject(new Error(`duplicate-request:${id}`));return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pendingRequests.delete(id);reject(new Error('Peer command timed out'))},Math.min(120000,Math.max(100,Number(timeout)||30000)));pendingRequests.set(id,{channel,resolve:v=>{clearTimeout(timer);resolve(v)},reject:e=>{clearTimeout(timer);reject(e)}})})}
+async function requestOnChannel(command,channel){if(!channel||channel.readyState!=='open')throw new Error('Target peer channel unavailable');const capability=capabilities.get(command.capabilityId);if(!capability)throw new Error(`Unknown capability ${command.capabilityId}`);const action=actionName(capability);if(!action)throw new Error('Capability has no peer action');const wait=awaitRequest(channel,command.id,command.meta?.timeout);try{channel.send(JSON.stringify({type:'request',action,id:command.id,params:command.args??{}}))}catch(e){const p=pendingRequests.get(command.id);pendingRequests.delete(command.id);p?.reject(e)}return wait}
+transports.register({id:'webrtc-compat',label:'Super API WebRTC node transport',kind:'webrtc',priority:10,available:ctx=>ctx?.targetNodeId?Boolean(channelForNode(ctx.targetNodeId)?.readyState==='open'):openChannels().length>0,request:(command,ctx={})=>requestOnChannel(command,ctx.channel||channelForNode(command.targetNodeId)||currentChannel()),notify(message,ctx={}){const ch=ctx.channel||channelForNode(ctx.targetNodeId)||currentChannel();if(!ch)throw new Error('No open paired-peer data channel');ch.send(JSON.stringify(message));return true}});
 transports.register({id:'loopback',label:'Local loopback',kind:'local',priority:1,available:()=>true,request:command=>executeLocal(command)});
 
-function localProvidersFor(capabilityId,operation='execute'){
-  syncCapabilities();const capability=capabilities.get(capabilityId);if(!capability)return[];return providers.resolve(capability,operation,{local:true});
-}
-async function executeLocal(request){
-  syncCapabilities();
-  const validation=Core.validateRequest(request);if(!validation.valid)throw new Error(validation.errors.join(', '));
-  const command=validation.request,capability=capabilities.get(command.capabilityId);if(!capability)throw new Error(`Unknown capability ${command.capabilityId}`);
-  const candidates=providers.resolve(capability,command.operation,{local:true});
-  if(!candidates.length)throw new Error(`No UCOS local provider for ${capability.id}; the original Super API Lab remains available for this action.`);
-  let lastError=null;
-  for(const provider of candidates){
-    const t=performance.now();
-    try{const result=await provider.execute(capability,command,{node:nodes.get(localNodeId)});const env=Core.executionEnvelope({requestId:command.id,capabilityId:capability.id,operation:command.operation,status:'available',providerId:provider.id,nodeId:localNodeId,result,durationMs:performance.now()-t});record(env);return env}catch(e){lastError=e;record(Core.executionEnvelope({requestId:command.id,capabilityId:capability.id,operation:command.operation,status:'error',providerId:provider.id,nodeId:localNodeId,error:e?.message||String(e),durationMs:performance.now()-t}))}
-  }
-  throw lastError||new Error('Local execution failed');
-}
-async function executeRemote(request){
-  syncCapabilities();
-  const validation=Core.validateRequest(request);if(!validation.valid)throw new Error(validation.errors.join(', '));
-  const command=validation.request,capability=capabilities.get(command.capabilityId);if(!capability)throw new Error(`Unknown capability ${command.capabilityId}`);
-  if(capability.remoteAllowed===false)throw new Error(`Capability ${capability.id} does not allow remote execution`);
-  const available=transports.resolve({remote:true}).filter(t=>t.kind==='webrtc');if(!available.length)throw new Error('No remote peer transport is currently available');
-  const transport=available[0],t=performance.now();
-  try{const result=await transport.request(command);const target=command.targetNodeId||[...nodes.list()].find(n=>!n.local&&n.online)?.id||'paired-peer';const env=Core.executionEnvelope({requestId:command.id,capabilityId:capability.id,operation:command.operation,status:'available',transportId:transport.id,nodeId:target,result,durationMs:performance.now()-t});record(env);return env}catch(e){const env=Core.executionEnvelope({requestId:command.id,capabilityId:capability.id,operation:command.operation,status:'error',transportId:transport.id,nodeId:command.targetNodeId||'paired-peer',error:e?.message||String(e),durationMs:performance.now()-t});record(env);throw Object.assign(new Error(env.error),{envelope:env})}
-}
-async function execute(input={}){
-  const validation=Core.validateRequest(input);if(!validation.valid)throw new Error(validation.errors.join(', '));
-  const command=validation.request;
-  if(command.mode==='local')return executeLocal(command);
-  if(command.mode==='peer'||command.mode==='remote')return executeRemote(command);
-  if(command.targetNodeId&&command.targetNodeId!==localNodeId)return executeRemote(command);
-  const localCandidates=localProvidersFor(command.capabilityId,command.operation);
-  if(localCandidates.length)return executeLocal(command);
-  if(currentChannel())return executeRemote(command);
-  return executeLocal(command);
-}
+function localProvidersFor(capabilityId,operation='execute'){syncCapabilities();const capability=capabilities.get(capabilityId);if(!capability)return[];return providers.resolve(capability,operation,{local:true})}
+async function executeLocal(request){syncCapabilities();const validation=Core.validateRequest(request);if(!validation.valid)throw new Error(validation.errors.join(', '));const command=validation.request,capability=capabilities.get(command.capabilityId);if(!capability)throw new Error(`Unknown capability ${command.capabilityId}`);const candidates=providers.resolve(capability,command.operation,{local:true});if(!candidates.length)throw new Error(`No UCOS local provider for ${capability.id}; the original Super API Lab remains available for this action.`);let lastError=null;for(const provider of candidates){const t=performance.now();try{const result=await provider.execute(capability,command,{node:nodes.get(localNodeId)});const env=Core.executionEnvelope({requestId:command.id,capabilityId:capability.id,operation:command.operation,status:'available',providerId:provider.id,nodeId:localNodeId,result,durationMs:performance.now()-t});record(env);return env}catch(e){lastError=e;record(Core.executionEnvelope({requestId:command.id,capabilityId:capability.id,operation:command.operation,status:'error',providerId:provider.id,nodeId:localNodeId,error:e?.message||String(e),durationMs:performance.now()-t}))}}throw lastError||new Error('Local execution failed')}
+async function executeRemote(request){syncCapabilities();installChannelObserver();const validation=Core.validateRequest(request);if(!validation.valid)throw new Error(validation.errors.join(', '));const command=validation.request,capability=capabilities.get(command.capabilityId);if(!capability)throw new Error(`Unknown capability ${command.capabilityId}`);if(capability.remoteAllowed===false)throw new Error(`Capability ${capability.id} does not allow remote execution`);let target=command.targetNodeId;let channel=target?channelForNode(target):null;if(target&&!channel)throw new Error(`Target node is not connected: ${target}`);if(!channel){const candidate=route(command.capabilityId,{preferLocal:false}).find(x=>!x.local&&x.node.online&&channelForNode(x.node.id));if(candidate){target=candidate.node.id;channel=channelForNode(target)}}if(!channel){channel=currentChannel();const mapped=channel?channelNodes.get(channel):null;if(mapped)target=mapped}if(!channel)throw new Error('No remote peer transport is currently available');const transport=transports.get('webrtc-compat'),t=performance.now();try{const result=await transport.request(command,{channel,targetNodeId:target});const nodeId=target||'paired-peer';const env=Core.executionEnvelope({requestId:command.id,capabilityId:capability.id,operation:command.operation,status:'available',transportId:transport.id,nodeId,result,durationMs:performance.now()-t});record(env);return env}catch(e){const env=Core.executionEnvelope({requestId:command.id,capabilityId:capability.id,operation:command.operation,status:'error',transportId:transport.id,nodeId:target||'paired-peer',error:e?.message||String(e),durationMs:performance.now()-t});record(env);throw Object.assign(new Error(env.error),{envelope:env})}}
+async function execute(input={}){const validation=Core.validateRequest(input);if(!validation.valid)throw new Error(validation.errors.join(', '));const command=validation.request;if(command.mode==='local')return executeLocal(command);if(command.mode==='peer'||command.mode==='remote')return executeRemote(command);if(command.targetNodeId&&command.targetNodeId!==localNodeId)return executeRemote(command);const localCandidates=localProvidersFor(command.capabilityId,command.operation);if(localCandidates.length)return executeLocal(command);if(openChannels().length)return executeRemote(command);return executeLocal(command)}
 
 function advertisementMessage(){syncCapabilities();return Core.advertisement(nodes.get(localNodeId),capabilities.export())}
-function sendAdvertisement(channel=currentChannel()){
-  if(!channel||channel.readyState!=='open')return false;
-  try{channel.send(JSON.stringify(advertisementMessage()));return true}catch{return false}
-}
-function bindChannel(channel){
-  if(!channel||channel.__superApiUCOSBound)return channel;
-  try{Object.defineProperty(channel,'__superApiUCOSBound',{value:true,configurable:true})}catch{return channel}
-  const receive=event=>{
-    let msg;try{msg=JSON.parse(event.data)}catch{return}
-    if(msg?.type==='ucos:advertise'&&msg.node){nodes.upsert({...msg.node,local:false,online:true,transportId:'webrtc-compat',lastSeen:Date.now()});emit('nodes',nodes.export());return;}
-    if(msg?.type==='ucos:hello'&&msg.node){nodes.upsert({...msg.node,local:false,online:true,transportId:'webrtc-compat',lastSeen:Date.now()});sendAdvertisement(channel);emit('nodes',nodes.export());return;}
-    if(msg?.type==='ucos:ping'){try{channel.send(JSON.stringify({type:'ucos:pong',id:msg.id,nodeId:localNodeId,time:Date.now()}))}catch{}return;}
-    if(msg?.type==='ucos:pong'&&pending.has(msg.id)){pending.get(msg.id)?.resolve?.(msg);pending.delete(msg.id);}
-  };
-  channel.addEventListener?.('message',receive);
-  const hello=()=>{try{channel.send(JSON.stringify({type:'ucos:hello',node:{id:localNodeId,label:nodes.get(localNodeId)?.label,kind:'browser',online:true,lastSeen:Date.now()}}));sendAdvertisement(channel)}catch{}};
-  channel.addEventListener?.('open',hello,{once:true});
-  channel.addEventListener?.('close',()=>{for(const n of nodes.list())if(!n.local&&n.transportId==='webrtc-compat')nodes.upsert({...n,online:false,lastSeen:Date.now()});emit('nodes',nodes.export())},{once:true});
-  if(channel.readyState==='open')queueMicrotask(hello);
-  return channel;
-}
-function installChannelObserver(){
-  const current=globalThis.__superApiTrackedChannels;
-  if(channelSetInstalled&&current===observedSet)return;
-  const Existing=current instanceof Set?current:new Set();
-  class ObservableChannelSet extends Set{add(value){super.add(value);bindChannel(value);return this}}
-  const next=new ObservableChannelSet(Existing);observedSet=next;globalThis.__superApiTrackedChannels=next;channelSetInstalled=true;
-  for(const ch of next)bindChannel(ch);
-}
-async function ping(timeout=2500){
-  installChannelObserver();const ch=currentChannel();if(!ch)throw new Error('No open peer channel');const id=Core.id('ping');
-  const promise=new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(id);reject(new Error('Peer ping timed out'))},timeout);pending.set(id,{resolve:v=>{clearTimeout(timer);resolve(v)},reject})});
-  ch.send(JSON.stringify({type:'ucos:ping',id,nodeId:localNodeId,time:Date.now()}));return promise;
-}
-function route(capabilityId,{preferLocal=true,targetNodeId=null}={}){syncCapabilities();const capability=capabilities.get(capabilityId);if(!capability)return[];return Core.routeCandidates({capability,nodes:nodes.list(),preferLocal,targetNodeId});}
-function health(){syncCapabilities();installChannelObserver();return{version:'2.0',architecture:'Universal Capability Fabric',uptimeMs:Math.round(performance.now()-started),localNodeId,capabilities:capabilities.summary(),providers:providers.list().map(p=>({id:p.id,label:p.label,priority:p.priority})),transports:transports.list().map(t=>({id:t.id,label:t.label,kind:t.kind,available:Boolean(t.available?.())})),nodes:nodes.export(),peerConnected:Boolean(currentChannel()),sessionAuthorized:authorized(),controlledPeer:isHost(),secureContext:secure(),storage:globalThis.SuperApiUCOSStorage?.health?.()||null,telemetry:telemetry.length,legacyLabPreserved:true};}
-function refresh(){syncCapabilities(true);installChannelObserver();sendAdvertisement();const snapshot=health();emit('refresh',snapshot);return snapshot;}
+function sendAdvertisement(channel=null){const targets=channel?[channel]:openChannels();let count=0;for(const ch of targets){if(ch?.readyState!=='open')continue;try{ch.send(JSON.stringify(advertisementMessage()));count++}catch{}}return count>0}
+function associateNode(channel,node){if(!channel||!node?.id)return;const old=channelNodes.get(channel);if(old&&old!==node.id)nodeChannels.delete(old);channelNodes.set(channel,node.id);nodeChannels.set(node.id,channel);nodes.upsert({...node,local:false,online:true,transportId:'webrtc-compat',lastSeen:Date.now()})}
+function settleRequest(msg,channel){const p=pendingRequests.get(msg?.id);if(!p||p.channel!==channel)return false;pendingRequests.delete(msg.id);if(msg.type==='error')p.reject(new Error(msg.error||'Peer command failed'));else p.resolve(msg.result??msg);return true}
+function bindChannel(channel){if(!channel||channel.__superApiUCOSBound)return channel;try{Object.defineProperty(channel,'__superApiUCOSBound',{value:true,configurable:true})}catch{return channel}const receive=event=>{let msg;try{msg=JSON.parse(event.data)}catch{return}if((msg?.type==='result'||msg?.type==='error')&&settleRequest(msg,channel))return;if(msg?.type==='ucos:advertise'&&msg.node){associateNode(channel,msg.node);emit('nodes',nodes.export());return}if(msg?.type==='ucos:hello'&&msg.node){associateNode(channel,msg.node);sendAdvertisement(channel);emit('nodes',nodes.export());return}if(msg?.type==='ucos:ping'){try{channel.send(JSON.stringify({type:'ucos:pong',id:msg.id,nodeId:localNodeId,time:Date.now()}))}catch{}return}if(msg?.type==='ucos:pong'&&pendingPings.has(msg.id)){const p=pendingPings.get(msg.id);if(p.channel!==channel)return;pendingPings.delete(msg.id);p.resolve(msg)}};channel.addEventListener?.('message',receive);const hello=()=>{try{channel.send(JSON.stringify({type:'ucos:hello',node:{id:localNodeId,label:nodes.get(localNodeId)?.label,kind:'browser',online:true,lastSeen:Date.now()}}));sendAdvertisement(channel)}catch{}};channel.addEventListener?.('open',hello,{once:true});channel.addEventListener?.('close',()=>{const nodeId=channelNodes.get(channel);if(nodeId){nodeChannels.delete(nodeId);channelNodes.delete(channel);const n=nodes.get(nodeId);if(n)nodes.upsert({...n,online:false,lastSeen:Date.now()})}for(const[id,p]of pendingRequests)if(p.channel===channel){pendingRequests.delete(id);p.reject(new Error('Peer channel closed before response'))}for(const[id,p]of pendingPings)if(p.channel===channel){pendingPings.delete(id);p.reject(new Error('Peer channel closed before pong'))}emit('nodes',nodes.export())},{once:true});if(channel.readyState==='open')queueMicrotask(hello);return channel}
+function installChannelObserver(){const current=globalThis.__superApiTrackedChannels;if(channelSetInstalled&&current===observedSet)return;const Existing=current instanceof Set?current:new Set();class ObservableChannelSet extends Set{add(value){super.add(value);bindChannel(value);return this}}const next=new ObservableChannelSet(Existing);observedSet=next;globalThis.__superApiTrackedChannels=next;channelSetInstalled=true;for(const ch of next)bindChannel(ch)}
+async function ping(targetOrTimeout=2500,maybeTimeout=2500){installChannelObserver();const targetNodeId=typeof targetOrTimeout==='string'?targetOrTimeout:'';const timeout=typeof targetOrTimeout==='number'?targetOrTimeout:maybeTimeout;const ch=targetNodeId?channelForNode(targetNodeId):currentChannel();if(!ch)throw new Error(targetNodeId?`Target node is not connected: ${targetNodeId}`:'No open peer channel');const id=Core.id('ping');const promise=new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pendingPings.delete(id);reject(new Error('Peer ping timed out'))},timeout);pendingPings.set(id,{channel,resolve:v=>{clearTimeout(timer);resolve(v)},reject:e=>{clearTimeout(timer);reject(e)}})});ch.send(JSON.stringify({type:'ucos:ping',id,nodeId:localNodeId,time:Date.now()}));return promise}
+function route(capabilityId,{preferLocal=true,targetNodeId=null}={}){syncCapabilities();const capability=capabilities.get(capabilityId);if(!capability)return[];return Core.routeCandidates({capability,nodes:nodes.list(),preferLocal,targetNodeId}).map(x=>({...x,connected:x.local||Boolean(channelForNode(x.node.id))}))}
+function health(){syncCapabilities();installChannelObserver();return{version:'4.0',architecture:'Universal Capability Fabric',uptimeMs:Math.round(performance.now()-started),localNodeId,capabilities:capabilities.summary(),providers:providers.list().map(p=>({id:p.id,label:p.label,priority:p.priority})),transports:transports.list().map(t=>({id:t.id,label:t.label,kind:t.kind,available:Boolean(t.available?.())})),nodes:nodes.export(),peerConnected:openChannels().length>0,connectedPeerNodes:[...nodeChannels.keys()],openPeerChannels:openChannels().length,sessionAuthorized:authorized(),controlledPeer:isHost(),secureContext:secure(),storage:globalThis.SuperApiUCOSStorage?.health?.()||null,telemetry:telemetry.length,pendingRemoteRequests:pendingRequests.size,legacyLabPreserved:true}}
+function refresh(){syncCapabilities(true);installChannelObserver();sendAdvertisement();const snapshot=health();emit('refresh',snapshot);return snapshot}
 
-installChannelObserver();syncCapabilities(true);
-for(const id of ['hostBtn','controllerBtn','allowRequests'])document.querySelector(`#${id}`)?.addEventListener(id==='allowRequests'?'change':'click',()=>queueMicrotask(refresh));
-window.addEventListener('online',refresh);window.addEventListener('offline',refresh);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
-const actionSelect=document.querySelector('#remoteAction');if(actionSelect){actionObserver=new MutationObserver(()=>queueMicrotask(refresh));actionObserver.observe(actionSelect,{childList:true});}
-const api=Object.freeze({core:Core,capabilities,providers,transports,nodes,events,telemetry,execute,executeLocal,executeRemote,route,health,refresh,ping,sendAdvertisement,registerProvider:p=>providers.register(p),registerTransport:t=>transports.register(t),localNodeId});
-globalThis.SuperApiUCOS=api;
-queueMicrotask(()=>emit('ready',health()));
+installChannelObserver();syncCapabilities(true);for(const id of ['hostBtn','controllerBtn','allowRequests'])document.querySelector(`#${id}`)?.addEventListener(id==='allowRequests'?'change':'click',()=>queueMicrotask(refresh));window.addEventListener('online',refresh);window.addEventListener('offline',refresh);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});const actionSelect=document.querySelector('#remoteAction');if(actionSelect){actionObserver=new MutationObserver(()=>queueMicrotask(refresh));actionObserver.observe(actionSelect,{childList:true})}
+const api=Object.freeze({core:Core,capabilities,providers,transports,nodes,events,telemetry,execute,executeLocal,executeRemote,route,health,refresh,ping,sendAdvertisement,channelForNode,registerProvider:p=>providers.register(p),registerTransport:t=>transports.register(t),localNodeId});globalThis.SuperApiUCOS=api;queueMicrotask(()=>emit('ready',health()));
 })();
