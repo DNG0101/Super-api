@@ -31,12 +31,12 @@ function authorized(){return Boolean(document.querySelector('#allowRequests')?.c
 function openChannels(){return[...(globalThis.__superApiTrackedChannels||[])].filter(ch=>ch?.readyState==='open');}
 function currentChannel(){const list=openChannels();return list[list.length-1]||null;}
 function actionName(capability){return capability?.metadata?.action||String(capability?.id||'').replace(/^action:/,'');}
-function syncCapabilities(){
+function syncCapabilities(notify=false){
   CapOS.discoverActions?.();
   for(const c of CapOS.catalog?.()||[])capabilities.register({...c,status:'implemented',metadata:{...(c.metadata||{}),compatibilitySource:'SuperApiCapabilityOS'}});
   const list=capabilities.export();
   nodes.upsert({...(nodes.get(localNodeId)||{}),id:localNodeId,local:true,online:navigator.onLine,capabilities:list.map(c=>c.id),capabilityDetails:list,lastSeen:Date.now()});
-  emit('capabilities',capabilities.summary());
+  if(notify)emit('capabilities',capabilities.summary());
   return list;
 }
 
@@ -160,9 +160,9 @@ async function ping(timeout=2500){
 }
 function route(capabilityId,{preferLocal=true,targetNodeId=null}={}){syncCapabilities();const capability=capabilities.get(capabilityId);if(!capability)return[];return Core.routeCandidates({capability,nodes:nodes.list(),preferLocal,targetNodeId});}
 function health(){syncCapabilities();installChannelObserver();return{version:'2.0',architecture:'Universal Capability Fabric',uptimeMs:Math.round(performance.now()-started),localNodeId,capabilities:capabilities.summary(),providers:providers.list().map(p=>({id:p.id,label:p.label,priority:p.priority})),transports:transports.list().map(t=>({id:t.id,label:t.label,kind:t.kind,available:Boolean(t.available?.())})),nodes:nodes.export(),peerConnected:Boolean(currentChannel()),sessionAuthorized:authorized(),controlledPeer:isHost(),secureContext:secure(),storage:globalThis.SuperApiUCOSStorage?.health?.()||null,telemetry:telemetry.length,legacyLabPreserved:true};}
-function refresh(){syncCapabilities();installChannelObserver();sendAdvertisement();emit('refresh',health());return health();}
+function refresh(){syncCapabilities(true);installChannelObserver();sendAdvertisement();const snapshot=health();emit('refresh',snapshot);return snapshot;}
 
-installChannelObserver();syncCapabilities();
+installChannelObserver();syncCapabilities(true);
 for(const id of ['hostBtn','controllerBtn','allowRequests'])document.querySelector(`#${id}`)?.addEventListener(id==='allowRequests'?'change':'click',()=>queueMicrotask(refresh));
 window.addEventListener('online',refresh);window.addEventListener('offline',refresh);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
 const actionSelect=document.querySelector('#remoteAction');if(actionSelect){actionObserver=new MutationObserver(()=>queueMicrotask(refresh));actionObserver.observe(actionSelect,{childList:true});}
