@@ -28,6 +28,11 @@ const engine=Core.createEngine({executeCapability:async req=>{calls++;if(req.cap
  ]};
  const adv=await engine.run(advanced);assert.equal(calls,2);assert.equal(adv.vars.last,3);assert.equal(adv.steps.loop.result.iterations,3);assert.equal(emitted[0].event,'demo.done');assert.equal(emitted[0].detail.last,3);assert.equal(adv.steps.skip.status,'skipped');
  assert.equal(Core.validate({id:'bad',steps:[{id:'x',type:'loop',items:[]}]}).valid,false);
+ assert.equal(Core.validate({id:'bad-limit',steps:[{id:'x',type:'loop',items:[1],maxIterations:0,body:[{id:'y',type:'set',value:1}]}]}).valid,false);
+ assert.equal(Core.validate({id:'bad-big-limit',steps:[{id:'x',type:'loop',items:[1],maxIterations:Core.MAX_LOOP_ITERATIONS+1,body:[{id:'y',type:'set',value:1}]}]}).valid,false);
+ let nested={id:'leaf',type:'set',value:1};for(let i=0;i<=Core.MAX_LOOP_DEPTH;i++)nested={id:`l${i}`,type:'loop',items:[1],body:[nested]};assert.equal(Core.validate({id:'deep',steps:[nested]}).valid,false);
  console.log('UCOS workflow retry loop emit and conditional-step matrix passed');
+ let abortCalls=0;const blocking=Core.createEngine({executeCapability:()=>{abortCalls++;return new Promise(()=>{})}}),abortCtl=new AbortController();const blocked=blocking.run({id:'blocked',steps:[{id:'cap',type:'capability',retry:5,request:{capabilityId:'slow'}}]},{signal:abortCtl.signal});setTimeout(()=>abortCtl.abort(new DOMException('stop','AbortError')),10);await assert.rejects(()=>blocked,e=>e?.name==='AbortError');assert.equal(abortCalls,1);
+ console.log('UCOS workflow prompt abort without retry passed');
  console.log(JSON.stringify({status:'UCOS_WORKFLOW_CORE_PASS',steps:Object.keys(result.steps).length,advancedSteps:Object.keys(adv.steps).length},null,2));
 })().catch(e=>{console.error(e);process.exitCode=1});
