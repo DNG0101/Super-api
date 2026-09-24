@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Capability OS browser smoke</title><script src="../modules/capability-os-core.js"></script></head><body><pre id="result">RUNNING</pre><script>
+(()=>{
+  try{
+    const C=globalThis.SuperApiCapabilityCore;
+    if(!C)throw new Error('core missing');
+    const r=C.createRegistry();
+    r.register({domain:'web',name:'Fetch',operations:['call']});
+    r.register({domain:'wireless',name:'Bluetooth',operations:['detect','connect'],sensitive:true,nativePermission:true});
+    if(r.size()!==2)throw new Error('registry size');
+    const p=C.evaluatePolicy(r.get('wireless:bluetooth'),{remote:true,sessionAuthorized:true,secureContext:true,nativePermissionGranted:false});
+    if(!p.allowed)throw new Error('session policy');
+    const plan=C.buildExecutionPlan(r.get('web:fetch'),{capabilityId:'web:fetch',operation:'call',args:[]},{remote:false,secureContext:true});
+    if(!plan.ok||!plan.steps.includes('resolve-adapter'))throw new Error('execution plan');
+    document.body.dataset.capabilityOsBrowser='pass';
+    document.querySelector('#result').textContent='CAPABILITY_OS_BROWSER_PASS';
+  }catch(e){
+    document.body.dataset.capabilityOsBrowser='fail';
+    document.querySelector('#result').textContent='CAPABILITY_OS_BROWSER_FAIL: '+e.message;
+  }
+})();
+</script></body></html>
