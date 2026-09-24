@@ -1,0 +1,87 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Capability OS runtime smoke</title></head>
+<body>
+<input id="allowRequests" type="checkbox" checked>
+<select id="remoteAction">
+  <option value="ext:test">SESSION • Test action</option>
+  <option value="ext:fail">SESSION • Failure action</option>
+  <option value="ext:circular">SESSION • Circular result action</option>
+  <option value="ext:peer-ok">SESSION • Peer success action</option>
+  <option value="ext:peer-close">SESSION • Peer close action</option>
+</select>
+<main><section id="networkSignalPanel"></section></main>
+<pre id="result">RUNNING</pre>
+<script src="../modules/capability-os-core.js"></script>
+<script>
+class FakeChannel extends EventTarget{
+  constructor(){super();this.readyState='open';}
+  send(payload){
+    const msg=JSON.parse(payload);
+    if(msg.action==='ext:peer-close'){
+      queueMicrotask(()=>{this.readyState='closed';this.dispatchEvent(new Event('close'));});
+      return;
+    }
+    queueMicrotask(()=>this.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'result',id:msg.id,result:{peer:true,action:msg.action}})})));
+  }
+}
+window.__superApiTrackedChannels=[new FakeChannel()];
+window.__superApiTrackedPeers=[];
+window.SUPER_API_EXT_HANDLE=async(channel,msg)=>{
+  if(msg.action==='ext:fail')return channel.send({type:'error',id:msg.id,error:'expected failure'});
+  if(msg.action==='ext:circular'){
+    const result={kind:'circular',big:9n};result.self=result;
+    return channel.send({type:'result',id:msg.id,result});
+  }
+  channel.send({type:'result',id:msg.id,result:{local:true,action:msg.action,params:msg.params}});
+};
+</script>
+<script src="../modules/capability-os.js"></script>
+<script>
+(async()=>{
+  const out=document.querySelector('#result');
+  const fail=m=>{throw new Error(m)};
+  try{
+    await new Promise(r=>setTimeout(r,40));
+    const OS=window.SuperApiCapabilityOS;if(!OS)fail('runtime missing');
+    if(!document.querySelector('#capabilityOsPanel'))fail('panel missing');
+    if(!OS.catalog().some(c=>c.id==='action:ext:test'))fail('initial action not discovered');
+
+    const local=await OS.execute({capabilityId:'action:ext:test',operation:'execute',args:{n:1},mode:'local'});
+    if(!local.ok||local.result?.params?.n!==1)fail('local adapter execution failed');
+
+    const circ=await OS.execute({capabilityId:'action:ext:circular',operation:'execute',mode:'local'});
+    if(circ.result?.self!=='[Circular]'||circ.result?.big!=='9')fail('safe result normalization failed');
+
+    let failed=false;
+    try{await OS.execute({capabilityId:'action:ext:fail',operation:'execute',mode:'local'});}catch(e){failed=Boolean(e.envelope&&!e.envelope.ok);}
+    if(!failed)fail('adapter error was not normalized');
+
+    let unsupported=false;
+    try{await OS.execute({capabilityId:'action:ext:test',operation:'read',mode:'local'});}catch(e){unsupported=/operation-not-supported/.test(e.message);}
+    if(!unsupported)fail('unsupported operation reached adapter');
+
+    const select=document.querySelector('#capabilityOsCapability');
+    select.value='action:ext:test';
+    const newOpt=document.createElement('option');newOpt.value='ext:dynamic';newOpt.textContent='SESSION • Dynamic action';document.querySelector('#remoteAction').appendChild(newOpt);
+    await new Promise(r=>setTimeout(r,20));
+    if(!OS.catalog().some(c=>c.id==='action:ext:dynamic'))fail('dynamic discovery failed');
+    if(select.value!=='action:ext:test')fail('selected capability was not preserved');
+
+    const peer=await OS.execute({capabilityId:'action:ext:peer-ok',operation:'execute',mode:'peer'});
+    if(!peer.ok||peer.result?.peer!==true)fail('peer execution failed');
+
+    let closed=false;
+    try{await OS.execute({capabilityId:'action:ext:peer-close',operation:'execute',mode:'peer',meta:{timeout:1000}});}catch(e){closed=/closed before response/.test(e.message);}
+    if(!closed)fail('peer close did not reject immediately');
+
+    const h=OS.health();if(h.pending!==0)fail('pending commands leaked');
+    if(OS.telemetry.length<5)fail('telemetry missing executions');
+    OS.stopRuntime('smoke complete');
+    document.body.dataset.capabilityOsRuntime='pass';out.textContent='CAPABILITY_OS_RUNTIME_PASS';
+  }catch(e){
+    window.SuperApiCapabilityOS?.stopRuntime?.('smoke failed');
+    document.body.dataset.capabilityOsRuntime='fail';out.textContent='CAPABILITY_OS_RUNTIME_FAIL: '+e.message;
+  }
+})();
+</script>
+</body></html>
