@@ -88,22 +88,26 @@
     updateState();
   });
 
-  // Load the cross-realm RPC layer without adding another app-level consent.
-  // The module still obeys the single allowRequests checkbox and browser/OS
-  // permission, secure-context, device-picker and trusted-user-activation rules.
-  if (!document.querySelector('script[data-super-api-realm-rpc]')) {
+  function loadModule(src, marker, onload) {
+    if (document.querySelector(`script[${marker}]`)) return;
     const script = document.createElement('script');
-    script.src = './modules/realm-rpc.js';
+    script.src = src;
     script.async = false;
-    script.dataset.superApiRealmRpc = 'true';
-    script.addEventListener('load', () => {
-      if (roleText && consent.checked) {
-        roleText.textContent = 'Single-session control is authorized. Window/Worker/Worklet realm RPC is ready where the browser permits it.';
-      }
-    });
-    script.addEventListener('error', () => {
-      console.error('Super API realm RPC module failed to load.');
-    });
+    script.setAttribute(marker, 'true');
+    if (onload) script.addEventListener('load', onload);
+    script.addEventListener('error', () => console.error(`Super API module failed to load: ${src}`));
     document.head.appendChild(script);
   }
+
+  // Cross-realm Web API RPC layer.
+  loadModule('./modules/realm-rpc.js', 'data-super-api-realm-rpc', () => {
+    if (roleText && consent.checked) {
+      roleText.textContent = 'Single-session control is authorized. Window/Worker/Worklet realm RPC is ready where the browser permits it.';
+    }
+  });
+
+  // Universal external/API protocol layer. This does not create a second
+  // Super-api consent; provider authentication, CORS and server policies still
+  // remain external requirements.
+  loadModule('./modules/universal-api.js', 'data-super-api-universal-api');
 })();
