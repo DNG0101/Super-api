@@ -117,4 +117,11 @@
       loadModule('./modules/universal-api-v2.js', 'data-super-api-universal-v2');
     });
   });
+
+  // Universal Capability OS control plane. The core owns the common registry,
+  // execution-plan and result contracts; the runtime discovers all existing
+  // extension actions and exposes them through one orchestrator.
+  loadModule('./modules/capability-os-core.js', 'data-super-api-capability-core', () => {
+    loadModule('./modules/capability-os.js', 'data-super-api-capability-os');
+  });
 })();
