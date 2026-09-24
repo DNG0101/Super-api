@@ -9,7 +9,7 @@
   "orientation": "any",
   "background_color": "#070b12",
   "theme_color": "#0b1020",
-  "description": "Comprehensive browser Web API capability lab with consent-gated WebRTC peer control.",
+  "description": "Comprehensive browser Web API capability lab with one-session WebRTC peer control, runtime interface discovery, worker/worklet realm scanning, and current platform feature tests.",
   "icons": [{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}],
   "launch_handler": {"client_mode":"navigate-existing"},
   "shortcuts": [{"name":"Open API Lab","short_name":"API Lab","url":"./"}],
