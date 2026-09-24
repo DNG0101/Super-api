@@ -18,6 +18,7 @@ const target = await getTarget();
 const ws = new WebSocket(target.webSocketDebuggerUrl);
 const pending = new Map();
 const exceptions = [];
+const network = new Map();
 let seq = 0;
 
 function failPending(error) {
@@ -49,6 +50,21 @@ ws.addEventListener('message', event => {
       column: d?.columnNumber ?? null,
       description: d?.exception?.description || d?.exception?.value || ''
     });
+    return;
+  }
+  if (msg.method === 'Network.requestWillBeSent') {
+    const p = msg.params;
+    network.set(p.requestId, {url:p.request?.url || '', type:p.type || '', started:true, finished:false, failed:false});
+    return;
+  }
+  if (msg.method === 'Network.loadingFinished') {
+    const item = network.get(msg.params?.requestId);
+    if (item) item.finished = true;
+    return;
+  }
+  if (msg.method === 'Network.loadingFailed') {
+    const item = network.get(msg.params?.requestId);
+    if (item) { item.finished = true; item.failed = true; item.errorText = msg.params?.errorText || ''; }
   }
 });
 
@@ -86,6 +102,8 @@ async function evaluate(expression, {awaitPromise = false, timeout = 5000} = {})
 try {
   await send('Runtime.enable');
   await send('Page.enable');
+  await send('Network.enable');
+  network.clear();
   await send('Page.navigate', {url: targetUrl});
 
   let state = null;
@@ -98,23 +116,29 @@ try {
         bodyChildren: document.body?.children?.length || 0,
         allowRequests: !!document.querySelector('#allowRequests'),
         catalog: !!document.querySelector('#catalog'),
+        extensionPanel: !!document.querySelector('#extPanel'),
         sessionBootstrap: !!document.querySelector('#sessionBootstrapPanel'),
         runtimeSurface: !!document.querySelector('#runtimeSurfacePanel'),
-        capabilityOs: !!document.querySelector('#capabilityOsPanel'),
+        emergingApis: !!document.querySelector('#emergingApisPanel'),
+        realmScanner: !!document.querySelector('#realmScannerPanel'),
+        mdnLive: !!document.querySelector('#mdnLivePanel'),
         interfaceHarness: !!document.querySelector('#interfaceHarnessPanel'),
+        latestPlatform: !!document.querySelector('#latestPlatformPanel'),
+        capabilityOs: !!document.querySelector('#capabilityOsPanel'),
         activityLog: document.querySelector('#log')?.textContent?.slice(0, 120) || '',
         scripts: document.scripts.length
       }))()`, {timeout: 2000});
-      if (state?.readyState === 'complete' && state.allowRequests && state.catalog && state.sessionBootstrap && state.runtimeSurface && state.capabilityOs) break;
+      const required = state && ['allowRequests','catalog','extensionPanel','sessionBootstrap','runtimeSurface','emergingApis','realmScanner','mdnLive','interfaceHarness','latestPlatform','capabilityOs'].every(k => state[k]);
+      if (required && (state.readyState === 'interactive' || state.readyState === 'complete')) break;
     } catch {}
     await new Promise(r => setTimeout(r, 200));
   }
 
   if (!state) throw new Error('Production page never became queryable');
-  if (state.readyState !== 'complete') throw new Error(`Document did not finish loading: ${state.readyState}`);
-  for (const key of ['allowRequests','catalog','sessionBootstrap','runtimeSurface','capabilityOs']) {
-    if (!state[key]) throw new Error(`Required production UI missing: ${key}`);
+  for (const key of ['allowRequests','catalog','extensionPanel','sessionBootstrap','runtimeSurface','emergingApis','realmScanner','mdnLive','interfaceHarness','latestPlatform','capabilityOs']) {
+    if (!state[key]) throw new Error(`Required production UI missing: ${key}; state=${JSON.stringify(state)}`);
   }
+  if (!['interactive','complete'].includes(state.readyState)) throw new Error(`Document did not become usable: ${state.readyState}`);
 
   const pong = await evaluate(`new Promise(resolve => setTimeout(() => resolve({pong:true, now:performance.now(), hidden:document.hidden}), 50))`, {awaitPromise:true, timeout:3000});
   if (!pong?.pong) throw new Error('Main thread responsiveness probe failed');
@@ -130,18 +154,21 @@ try {
   if (!capability.health?.eventDriven) throw new Error('Capability OS is not using the event-driven runtime');
   if (capability.runtimeAutoScanned) throw new Error('Exhaustive runtime reflection still ran automatically during startup');
 
-  if (exceptions.length) {
-    throw new Error(`Uncaught runtime exception(s): ${JSON.stringify(exceptions.slice(0,5))}`);
-  }
+  if (exceptions.length) throw new Error(`Uncaught runtime exception(s): ${JSON.stringify(exceptions.slice(0,5))}`);
 
-  console.log(JSON.stringify({
+  const pendingNetwork = [...network.values()].filter(x => !x.finished).map(({url,type}) => ({url,type}));
+  const failedNetwork = [...network.values()].filter(x => x.failed).map(({url,type,errorText}) => ({url,type,errorText}));
+  const output = {
     status: 'PRODUCTION_BROWSER_PASS',
     targetUrl,
     state,
     responsiveness: pong,
     capability,
-    exceptions: exceptions.length
-  }, null, 2));
+    exceptions: exceptions.length,
+    pendingNetwork,
+    failedNetwork
+  };
+  console.log(JSON.stringify(output, null, 2));
 } finally {
   try { ws.close(); } catch {}
 }
