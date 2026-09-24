@@ -1,0 +1,60 @@
+name: Validate Super API Lab
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -maxdepth 1 -name '*.js' -print0 | sort -z | xargs -0 -n1 node --check
+      - name: Manifest JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8')); console.log('manifest valid')"
+      - name: HTML local script references
+        shell: python
+        run: |
+          from html.parser import HTMLParser
+          from pathlib import Path
+          class P(HTMLParser):
+              def __init__(self): super().__init__(); self.src=[]; self.href=[]
+              def handle_starttag(self, tag, attrs):
+                  a=dict(attrs)
+                  if tag=='script' and a.get('src','').startswith('./'): self.src.append(a['src'][2:])
+                  if tag=='link' and a.get('href','').startswith('./'): self.href.append(a['href'][2:])
+          p=P(); p.feed(Path('index.html').read_text())
+          refs=p.src+p.href
+          missing=[x for x in refs if not Path(x).exists()]
+          duplicates=sorted({x for x in refs if refs.count(x)>1})
+          print('Referenced local assets:', len(refs))
+          print('Scripts:', *p.src, sep='\n- ')
+          if missing: raise SystemExit('Missing local references: '+', '.join(missing))
+          if duplicates: raise SystemExit('Duplicate local references: '+', '.join(duplicates))
+      - name: Service worker core assets
+        shell: python
+        run: |
+          import re
+          from pathlib import Path
+          text=Path('sw.js').read_text()
+          m=re.search(r"const CORE=\[(.*?)\];", text, re.S)
+          if not m: raise SystemExit('CORE cache list not found')
+          items=re.findall(r"'([^']+)'",m.group(1))
+          missing=[]
+          for item in items:
+              if item in ('.','./'): continue
+              path=item[2:] if item.startswith('./') else item
+              if not Path(path).exists(): missing.append(path)
+          if missing: raise SystemExit('Missing SW core assets: '+', '.join(missing))
+          print('Service worker core assets valid:', len(items))
