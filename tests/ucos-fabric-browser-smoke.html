@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>UCOS Fabric smoke</title></head>
+<body>
+<button id="hostBtn" class="primary">host</button><button id="controllerBtn">controller</button><input id="allowRequests" type="checkbox" checked>
+<select id="remoteAction"><option value="environment-info">Environment</option><option value="ext:test">Extension test</option></select>
+<main><section id="legacyLab">legacy lab preserved</section></main><pre id="result">running</pre>
+<script src="../modules/capability-os-core.js"></script>
+<script>
+window.__superApiTrackedChannels=new Set();
+window.SuperApiCapabilityOS={
+ discoverActions(){return{total:2}},
+ catalog(){return[
+  {id:'action:environment-info',domain:'web',name:'environment-info',label:'Environment',operations:['execute','test'],metadata:{action:'environment-info'}},
+  {id:'action:ext:test',domain:'diagnostics',name:'ext:test',label:'Extension test',operations:['execute','test'],metadata:{action:'ext:test'}}
+ ]},
+ async execute(input){return{result:{compatibility:true,mode:input.mode,capabilityId:input.capabilityId}}}
+};
+window.SUPER_API_EXT_HANDLE=()=>{};
+</script>
+<script src="../modules/ucos-fabric-core.js"></script>
+<script src="../modules/ucos-storage.js"></script>
+<script src="../modules/ucos-fabric.js"></script>
+<script src="../modules/ucos-shell.js"></script>
+<script>
+(async()=>{
+ try{
+  if(!window.SuperApiUCOS)throw new Error('SuperApiUCOS missing');
+  if(!document.querySelector('#ucosFabricShell'))throw new Error('UCOS shell missing');
+  if(!document.querySelector('#legacyLab'))throw new Error('legacy lab was removed');
+  const h=SuperApiUCOS.health();
+  if(h.capabilities.total<2)throw new Error('capabilities not mirrored');
+  if(h.providers.length<2)throw new Error('providers missing');
+  if(h.transports.length<2)throw new Error('transports missing');
+  const env=await SuperApiUCOS.execute({capabilityId:'action:environment-info',operation:'execute',mode:'local'});
+  if(!env.ok||!env.result)throw new Error('local provider execution failed');
+  document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS';
+ }catch(error){document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_FAIL '+error.message;throw error}
+})();
+</script>
+</body></html>
