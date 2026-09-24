@@ -12,12 +12,22 @@ assert.equal(Core.validate(flow).valid,true);
 assert.deepEqual(Core.order(flow).map(x=>x.id),['a','b','c','d']);
 console.log('UCOS workflow validation and ordering passed');
 
-const engine=Core.createEngine({executeCapability:async req=>({result:Number(req.args.value)*2})});
+let calls=0,emitted=[];
+const engine=Core.createEngine({executeCapability:async req=>{calls++;if(req.capabilityId==='flaky'&&calls===1)throw new Error('transient');return{result:Number(req.args?.value??1)*2}},emit:async(event,detail)=>emitted.push({event,detail}),sleep:async()=>{}});
 (async()=>{
  const result=await engine.run(flow,{input:{}});assert.equal(result.vars.n,2);assert.equal(result.steps.b.result.result,4);assert.equal(result.steps.c.result.passed,true);assert.equal(result.vars.done,true);
  console.log('UCOS workflow data binding and capability step passed');
  const cycle={id:'cycle',steps:[{id:'a',type:'set',dependsOn:['b']},{id:'b',type:'set',dependsOn:['a']}]};assert.throws(()=>Core.order(cycle),/dependency-cycle/);
  const ctl=new AbortController();ctl.abort();await assert.rejects(()=>engine.run({id:'abort',steps:[{id:'x',type:'delay',ms:100}]},{signal:ctl.signal}));
  console.log('UCOS workflow cycle and cancellation passed');
- console.log(JSON.stringify({status:'UCOS_WORKFLOW_CORE_PASS',steps:Object.keys(result.steps).length},null,2));
+ calls=0;const advanced={id:'advanced',steps:[
+  {id:'retry',type:'capability',retry:1,retryDelayMs:1,request:{capabilityId:'flaky',args:{value:3}}},
+  {id:'loop',type:'loop',dependsOn:['retry'],items:[1,2,3],body:[{id:'copy',type:'set',key:'last',value:'${loop.item}'}]},
+  {id:'event',type:'emit',dependsOn:['loop'],event:'demo.done',detail:{last:'${vars.last}'}},
+  {id:'skip',type:'set',dependsOn:['event'],when:false,key:'never',value:true}
+ ]};
+ const adv=await engine.run(advanced);assert.equal(calls,2);assert.equal(adv.vars.last,3);assert.equal(adv.steps.loop.result.iterations,3);assert.equal(emitted[0].event,'demo.done');assert.equal(emitted[0].detail.last,3);assert.equal(adv.steps.skip.status,'skipped');
+ assert.equal(Core.validate({id:'bad',steps:[{id:'x',type:'loop',items:[]}]}).valid,false);
+ console.log('UCOS workflow retry loop emit and conditional-step matrix passed');
+ console.log(JSON.stringify({status:'UCOS_WORKFLOW_CORE_PASS',steps:Object.keys(result.steps).length,advancedSteps:Object.keys(adv.steps).length},null,2));
 })().catch(e=>{console.error(e);process.exitCode=1});

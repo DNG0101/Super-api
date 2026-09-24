@@ -1,0 +1,21 @@
+(()=>{
+'use strict';
+if(globalThis.SuperApiUCOSPackages)return;
+const Core=globalThis.SuperApiUCOSPackageCore,Storage=globalThis.SuperApiUCOSStorage,VFS=globalThis.SuperApiUCOSVFS;
+if(!Core){console.error('UCOS packages require package core');return}
+const NS='packages-v1',UCOS_VERSION='6.0.0';
+const enc=new TextEncoder();
+function stable(value){if(Array.isArray(value))return`[${value.map(stable).join(',')}]`;if(value&&typeof value==='object')return`{${Object.keys(value).sort().map(k=>`${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;return JSON.stringify(value)}
+async function sha256(text){const d=await crypto.subtle.digest('SHA-256',enc.encode(text));return[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+async function computeIntegrity(pkg){const p=Core.normalizePackage(pkg);return`sha256-${await sha256(stable({manifest:p.manifest,files:p.files,minUCOS:p.minUCOS}))}`}
+async function getRecord(appId){return Storage?.get?.(NS,String(appId),{preferred:['indexeddb','opfs','local','memory']})||null}
+async function list(){const keys=await Storage?.list?.(NS,{preferred:['indexeddb','opfs','local','memory']})||[];const rows=[];for(const k of keys){const r=await getRecord(k);if(r)rows.push(r)}return rows.sort((a,b)=>String(a.manifest?.name||a.appId).localeCompare(String(b.manifest?.name||b.appId)))}
+async function persistFiles(pkg){if(!VFS)return;await VFS.init?.();const base=`/apps/packages/${pkg.manifest.id}/${pkg.manifest.version}`;await VFS.mkdir(base,{recursive:true});for(const[path,content]of Object.entries(pkg.files)){const full=`${base}/${path}`;const parent=full.split('/').slice(0,-1).join('/')||'/';await VFS.mkdir(parent,{recursive:true});await VFS.writeText(full,content)}return base}
+async function install(input,{allowDowngrade=false}={}){const v=Core.validatePackage(input,{ucosVersion:UCOS_VERSION});if(!v.valid)throw new Error(v.errors.join(','));const pkg=v.package,appId=pkg.manifest.id,old=await getRecord(appId);if(old&&!allowDowngrade&&Core.compareSemver(pkg.manifest.version,old.manifest.version)<0)throw new Error('package-downgrade-blocked');const actual=await computeIntegrity(pkg);if(pkg.integrity&&pkg.integrity!==actual)throw new Error('package-integrity-mismatch');const base=await persistFiles(pkg);const record={appId,manifest:pkg.manifest,files:pkg.files,integrity:actual,minUCOS:pkg.minUCOS,installedAt:Date.now(),base};await Storage?.set?.(NS,appId,record,{preferred:['indexeddb','opfs','local','memory']});const runtime=globalThis.SuperApiUCOSRuntime;if(runtime){const manifest=Core.manifestFromPackage(pkg);manifest.entry=`package:${appId}`;manifest.metadata={...(manifest.metadata||{}),packageIntegrity:actual,packageBase:base};await runtime.installManifest(manifest)}return{...Core.packageSummary({...pkg,integrity:actual}),integrity:actual,base}}
+async function uninstall(appId){await globalThis.SuperApiUCOSRuntime?.uninstall?.(appId);const r=await getRecord(appId);if(r?.base&&VFS)try{await VFS.remove(r.base,{recursive:true})}catch{}await Storage?.delete?.(NS,String(appId),{preferred:['indexeddb','opfs','local','memory']});return Boolean(r)}
+async function getEntryCode(appId){const r=await getRecord(appId);if(!r)throw new Error('package-not-installed');const entry=String(r.manifest?.entry||'');if(!entry||typeof r.files?.[entry]!=='string')throw new Error('package-entry-missing');return r.files[entry]}
+async function exportPackage(appId){const r=await getRecord(appId);if(!r)return null;return{format:'ucosapp',formatVersion:1,createdAt:r.installedAt,manifest:r.manifest,files:r.files,integrity:r.integrity,minUCOS:r.minUCOS}}
+async function verify(appId){const r=await getRecord(appId);if(!r)return{ok:false,error:'package-not-installed'};const actual=await computeIntegrity(r);return{ok:actual===r.integrity,expected:r.integrity,actual,appId,version:r.manifest.version}}
+const api=Object.freeze({core:Core,version:UCOS_VERSION,computeIntegrity,install,uninstall,list,get:getRecord,getEntryCode,exportPackage,verify,health:async()=>({installed:(await list()).length,version:UCOS_VERSION})});
+globalThis.SuperApiUCOSPackages=api;
+})();

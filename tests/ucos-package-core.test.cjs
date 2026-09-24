@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict');
+const Core=require('../modules/ucos-package-core.js');
+assert.equal(Core.compareSemver('1.2.3','1.2.2'),1);
+assert.equal(Core.compareSemver('1.2.3','1.2.3'),0);
+assert.equal(Core.satisfies('6.1.0','>=6.0.0 <7.0.0'),true);
+assert.equal(Core.satisfies('7.0.0','^6.0.0'),false);
+console.log('UCOS package semantic version matrix passed');
+const pkg={format:'ucosapp',manifest:{id:'demo.app',name:'Demo',version:'1.0.0',entry:'main.js',capabilities:['action:environment-info']},files:{'main.js':'window.UCOSApp=()=>{};'},minUCOS:'^6.0.0'};
+const valid=Core.validatePackage(pkg,{ucosVersion:'6.0.0'});assert.equal(valid.valid,true);assert.equal(Core.packageSummary(pkg).files,1);assert.equal(Core.manifestFromPackage(pkg).runtime,'sandbox');
+console.log('UCOS package validation and manifest conversion passed');
+assert.equal(Core.validatePackage({...pkg,manifest:{...pkg.manifest,entry:'missing.js'}},{ucosVersion:'6.0.0'}).valid,false);
+assert.equal(Core.validatePackage({...pkg,minUCOS:'>=7.0.0'},{ucosVersion:'6.0.0'}).valid,false);
+assert.throws(()=>Core.normalizePackage({...pkg,files:{'../escape.js':'x'}}),/invalid-package-path/);
+console.log('UCOS package traversal and compatibility rejection passed');
+console.log(JSON.stringify({status:'UCOS_PACKAGE_CORE_PASS'},null,2));

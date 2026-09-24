@@ -31,8 +31,8 @@
   loadModule('./modules/wireless-radio-core.js','data-super-api-wireless-core',()=>loadModule('./modules/wireless-radio.js','data-super-api-wireless-radio'));
   loadModule('./modules/universal-core.js','data-super-api-universal-core',()=>loadModule('./modules/universal-api.js','data-super-api-universal-api',()=>loadModule('./modules/universal-api-v2.js','data-super-api-universal-v2')));
 
-  // UCOS v5 boot order: compatibility/fabric -> lifecycle/security/vault -> runtime/VFS/workflows -> shell -> integrations.
-  // Existing Super API Lab remains the compatibility provider and no browser/OS permission boundary is bypassed.
+  // UCOS v6 boot order preserves the v5 security/recovery kernel and adds package management,
+  // cancellable/evented app IPC, richer workflows, and user-facing system operation centers.
   loadModule('./modules/capability-os-core.js','data-super-api-capability-core',()=>{
     loadModule('./modules/capability-os.js','data-super-api-capability-os',()=>{
       loadModule('./modules/ucos-fabric-core.js','data-super-api-ucos-fabric-core',()=>{
@@ -45,13 +45,19 @@
                     loadModule('./modules/ucos-secure-peer.js','data-super-api-ucos-secure-peer',()=>{
                       loadModule('./modules/ucos-runtime-core.js','data-super-api-ucos-runtime-core',()=>{
                         loadModule('./modules/ucos-vfs.js','data-super-api-ucos-vfs',()=>{
-                          loadModule('./modules/ucos-workflow-core.js','data-super-api-ucos-workflow-core',()=>{
-                            loadModule('./modules/ucos-workflows.js','data-super-api-ucos-workflows',()=>{
-                              loadModule('./modules/ucos-runtime.js','data-super-api-ucos-runtime',()=>{
-                                loadModule('./modules/ucos-shell.js','data-super-api-ucos-shell',()=>{
-                                  loadModule('./modules/ucos-v4-integration.js','data-super-api-ucos-v4',()=>{
-                                    loadModule('./modules/ucos-update.js','data-super-api-ucos-update',()=>{
-                                      loadModule('./modules/ucos-v5-integration.js','data-super-api-ucos-v5');
+                          loadModule('./modules/ucos-package-core.js','data-super-api-ucos-package-core',()=>{
+                            loadModule('./modules/ucos-packages.js','data-super-api-ucos-packages',()=>{
+                              loadModule('./modules/ucos-workflow-core.js','data-super-api-ucos-workflow-core',()=>{
+                                loadModule('./modules/ucos-workflows.js','data-super-api-ucos-workflows',()=>{
+                                  loadModule('./modules/ucos-runtime.js','data-super-api-ucos-runtime',()=>{
+                                    loadModule('./modules/ucos-shell.js','data-super-api-ucos-shell',()=>{
+                                      loadModule('./modules/ucos-v4-integration.js','data-super-api-ucos-v4',()=>{
+                                        loadModule('./modules/ucos-update.js','data-super-api-ucos-update',()=>{
+                                          loadModule('./modules/ucos-v5-integration.js','data-super-api-ucos-v5',()=>{
+                                            loadModule('./modules/ucos-v6-integration.js','data-super-api-ucos-v6');
+                                          });
+                                        });
+                                      });
                                     });
                                   });
                                 });
