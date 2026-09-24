@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><title>UCOS v6 browser smoke</title></head><body>
+<!doctype html><html><head><meta charset="utf-8"><title>UCOS v6.2 browser smoke</title></head><body>
 <button id="hostBtn" class="primary">host</button><button id="controllerBtn">controller</button><input id="allowRequests" type="checkbox" checked><select id="remoteAction"><option value="environment-info">Environment</option></select><main></main><div id="mount"></div><pre id="result">running</pre>
 <script src="../modules/capability-os-core.js"></script><script>
 window.__superApiTrackedChannels=new Set();window.SuperApiCapabilityOS={discoverActions(){return{total:1}},catalog(){return[{id:'action:environment-info',domain:'web',name:'environment-info',operations:['execute'],metadata:{action:'environment-info'}}]},async execute(input){return{result:{ok:true,capabilityId:input.capabilityId}}}};
@@ -7,8 +7,11 @@ window.__superApiTrackedChannels=new Set();window.SuperApiCapabilityOS={discover
 <script>
 (async()=>{try{
  await SuperApiUCOSSecurity.ready;await SuperApiUCOSRuntime.ready;await SuperApiUCOSVFS.init();
- if(!SuperApiUCOSPackages||SuperApiUCOSPackages.version!=='6.0.0')throw new Error('package manager missing');
+ if(!SuperApiUCOSPackages||SuperApiUCOSPackages.version!=='6.2.0')throw new Error('package manager version drift');
+ if(SuperApiUCOSLifecycle.health().bootScope!=='tab-session')throw new Error('lifecycle boot marker is not tab scoped');
  const storageNs='audit-fallback-'+Date.now(),storageKey='value';await SuperApiUCOSStorage.adapters.get('indexeddb').delete(storageNs,storageKey).catch(()=>{});await SuperApiUCOSStorage.adapters.get('memory').set(storageNs,storageKey,{from:'memory'});const fallback=await SuperApiUCOSStorage.get(storageNs,storageKey,{preferred:['indexeddb','memory']});if(fallback?.from!=='memory')throw new Error('storage fallback skipped lower backend value');await SuperApiUCOSStorage.delete(storageNs,storageKey,{preferred:['indexeddb','memory']});if(await SuperApiUCOSStorage.adapters.get('memory').get(storageNs,storageKey))throw new Error('storage delete did not clear fallback backend');
+ if(SuperApiUCOSStorage.health().opfs){const opfs=SuperApiUCOSStorage.adapters.get('opfs'),suffix=Date.now();const nsA=`collision/${suffix}`,nsB=`collision_${suffix}`,keyA='key/name',keyB='key_name';await opfs.set(nsA,keyA,{v:'A'});await opfs.set(nsB,keyB,{v:'B'});if((await opfs.get(nsA,keyA))?.v!=='A'||(await opfs.get(nsB,keyB))?.v!=='B')throw new Error('OPFS encoded namespace/key isolation failed');if((await opfs.get(nsA,keyB))!==null||(await opfs.get(nsB,keyA))!==null)throw new Error('OPFS namespace/key collision detected');const aKeys=await opfs.list(nsA),bKeys=await opfs.list(nsB);if(!aKeys.includes(keyA)||aKeys.includes(keyB)||!bKeys.includes(keyB)||bKeys.includes(keyA))throw new Error('OPFS encoded key listing isolation failed');await opfs.delete(nsA,keyA);await opfs.delete(nsB,keyB)}
+ await assertReject(()=>Promise.resolve(SuperApiUCOSVFS.normalize('/../../system')),'root traversal');
  await SuperApiUCOSVFS.mkdir('/tmp/audit-tree',{recursive:true});await SuperApiUCOSVFS.writeText('/tmp/audit-tree/file.txt','x');await assertReject(()=>SuperApiUCOSVFS.copy('/tmp/audit-tree','/tmp/audit-tree/child'),'descendant copy');await assertReject(()=>SuperApiUCOSVFS.move('/tmp/audit-tree','/tmp/audit-tree/child'),'descendant move');await assertReject(()=>SuperApiUCOSVFS.rename('/tmp/audit-tree/file.txt','..'),'ambiguous rename');await SuperApiUCOSVFS.remove('/tmp/audit-tree',{recursive:true});
  const entry=`window.UCOSApp=async function(root,UCOS){
    await UCOS.vfs.writeText('/boot.txt','package-ok');
@@ -16,7 +19,7 @@ window.__superApiTrackedChannels=new Set();window.SuperApiCapabilityOS={discover
    const c=new AbortController();setTimeout(()=>c.abort(),20);try{await UCOS.workflows.run({id:'cancel-flow',steps:[{id:'wait',type:'delay',ms:1000}]},{},{signal:c.signal,timeoutMs:5000})}catch(e){await UCOS.vfs.writeText('/cancel.txt',e.name==='AbortError'||/abort|cancel/i.test(e.message)?'cancelled':'wrong-error')}
    root.textContent='package-ready';
  }`;
- const pkg={format:'ucosapp',formatVersion:1,minUCOS:'^6.0.0',manifest:{id:'smoke.package',name:'Smoke Package',version:'1.0.0',entry:'main.js',capabilities:['system.vfs','system.workflow']},files:{'main.js':entry}};
+ const pkg={format:'ucosapp',formatVersion:1,minUCOS:'>=6.1.0 <7.0.0',manifest:{id:'smoke.package',name:'Smoke Package',version:'1.0.0',entry:'main.js',capabilities:['system.vfs','system.workflow']},files:{'main.js':entry}};
  const installed=await SuperApiUCOSPackages.install(pkg);if(!installed.integrity?.startsWith('sha256-'))throw new Error('package integrity missing');
  const verify=await SuperApiUCOSPackages.verify('smoke.package');if(!verify.ok)throw new Error('package verification failed');
  if(SuperApiUCOSRuntime.manifests.get('smoke.package')?.entry!=='package:smoke.package')throw new Error('package runtime manifest missing');
@@ -27,11 +30,11 @@ window.__superApiTrackedChannels=new Set();window.SuperApiCapabilityOS={discover
  handle.suspend('v6-smoke');await new Promise(r=>setTimeout(r,80));if(await SuperApiUCOSVFS.readText('/apps/data/smoke.package/event.txt')!=='suspended')throw new Error('sandbox runtime event refcount subscription failed');handle.resume();
  await assertReject(()=>SuperApiUCOSPackages.install({...pkg,manifest:{...pkg.manifest,version:'0.9.0'}}),'downgrade');
  const bad={...pkg,integrity:'sha256-deadbeef'};await assertReject(()=>SuperApiUCOSPackages.install(bad),'integrity');
- const flow={id:'advanced',steps:[{id:'loop',type:'loop',items:[1,2,3],body:[{id:'set',type:'set',key:'last',value:'${loop.item}'}]},{id:'emit',type:'emit',dependsOn:['loop'],event:'v6.smoke',detail:{last:'${vars.last}'}}]};const run=await SuperApiUCOSWorkflows.run(flow);if(run.result.vars.last!==3)throw new Error('advanced workflow loop failed');
+ const flow={id:'advanced',steps:[{id:'loop',type:'loop',items:[1,2,3],body:[{id:'second',type:'set',dependsOn:['first'],key:'last',value:'${loop.item}'},{id:'first',type:'set',key:'first',value:true}]},{id:'emit',type:'emit',dependsOn:['loop'],event:'v6.smoke',detail:{last:'${vars.last}'}}]};const run=await SuperApiUCOSWorkflows.run(flow);if(run.result.vars.last!==3||run.result.vars.first!==true)throw new Error('advanced nested workflow dependency failed');
  const recursive={id:'recursive-smoke',triggers:[{type:'event',event:'audit.recursive'}],steps:[{id:'emit',type:'emit',event:'audit.recursive',detail:{ok:true}}]};await SuperApiUCOSWorkflows.save(recursive);const triggered=await SuperApiUCOSWorkflows.dispatch('audit.recursive',{root:true});if(triggered.length!==1||triggered[0].state!=='success')throw new Error('workflow recursion guard outer run failed');if(SuperApiUCOSWorkflows.health().activeTriggers!==0)throw new Error('workflow recursion guard leaked active trigger');await SuperApiUCOSWorkflows.remove(recursive.id);
  await handle.close();await new Promise(r=>setTimeout(r,0));if(SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid))throw new Error('package sandbox process cleanup failed');await SuperApiUCOSPackages.uninstall('smoke.package');try{await SuperApiUCOSVFS.remove('/apps/data/smoke.package',{recursive:true})}catch{}
  if(await SuperApiUCOSPackages.get('smoke.package'))throw new Error('package uninstall failed');
- document.querySelector('#result').textContent='UCOS_V6_BROWSER_PASS';
+ document.querySelector('#result').textContent='UCOS_V6_BROWSER_PASS UCOS_V62_AUDIT_PASS';
  }catch(e){document.querySelector('#result').textContent='UCOS_V6_BROWSER_FAIL '+e.message;throw e}
  async function assertReject(fn,label){let failed=false;try{await fn()}catch{failed=true}if(!failed)throw new Error(label+' rejection missing')}
 })();
