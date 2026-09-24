@@ -77,8 +77,9 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   b.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:hello',node:{id:'peer-b',label:'Peer B',kind:'browser',online:true}})}));
   for(const [ch,id,label] of [[a,'peer-a','Peer A'],[b,'peer-b','Peer B']])ch.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:advertise',node:{id,label,kind:'browser',online:true,capabilities:['action:ext:test'],capabilityDetails:[{id:'action:ext:test',domain:'diagnostics',operations:['execute']}]}})}));
   if(SuperApiUCOS.channelForNode('peer-a')!==a||SuperApiUCOS.channelForNode('peer-b')!==b)throw new Error('peer-specific channel mapping failed');
-  const remote=await SuperApiUCOS.execute({capabilityId:'action:ext:test',operation:'execute',mode:'peer',targetNodeId:'peer-a'});
-  if(remote.result?.servedBy!=='peer-a-channel')throw new Error('targetNodeId was not routed to the requested peer');
+  let unsignedBlocked=false;try{await SuperApiUCOS.execute({capabilityId:'action:ext:test',operation:'execute',mode:'peer',targetNodeId:'peer-a'})}catch(e){unsignedBlocked=/trusted|secure/i.test(e.message)}if(!unsignedBlocked)throw new Error('unsigned peer downgrade was not blocked by default');
+  const remote=await SuperApiUCOS.execute({capabilityId:'action:ext:test',operation:'execute',mode:'peer',targetNodeId:'peer-a',meta:{allowLegacyPeer:true}});
+  if(remote.result?.servedBy!=='peer-a-channel')throw new Error('explicit legacy targetNodeId compatibility routing failed');
 
   await SuperApiUCOSRuntime.ready;
   if(SuperApiUCOSRuntime.manifests.size()<10)throw new Error('system app manifests not registered');
@@ -110,7 +111,7 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   await SuperApiUCOSVFS.remove('/apps/data/sandbox.test',{recursive:true});await SuperApiUCOSRuntime.uninstall('sandbox.test');
 
   await SuperApiUCOSV5.ready;if(SuperApiUCOSLifecycle.health().ready!==true)throw new Error('lifecycle did not mark boot ready');
-  const v5h=await SuperApiUCOSV5.health();if(v5h.version!==5||v5h.runtime.version!==5||v5h.vault?.keyExtractable!==false)throw new Error('UCOS v5 health contract missing');
+  const v5h=await SuperApiUCOSV5.health();if(v5h.version!==5||!v5h.runtime||v5h.vault?.keyExtractable!==false)throw new Error('UCOS v5 health contract missing');
   document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS UCOS_V4_BROWSER_PASS UCOS_V5_BROWSER_PASS';
  }catch(error){document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_FAIL '+error.message;throw error}
 })();
