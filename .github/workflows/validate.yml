@@ -21,6 +21,8 @@ jobs:
         run: |
           set -euo pipefail
           find . -maxdepth 1 -name '*.js' -print0 | sort -z | xargs -0 -n1 node --check
+      - name: Repository wiring audit
+        run: node .github/scripts/static-audit.mjs
       - name: Manifest JSON
         run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8')); console.log('manifest valid')"
       - name: HTML local script references
