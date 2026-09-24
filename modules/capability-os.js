@@ -9,10 +9,10 @@ const telemetry=[];
 const pending=new Map();
 const started=performance.now();
 const MAX_TELEMETRY=300;
-let refreshInterval=null;
 let observedActionSelect=null;
 let refreshQueued=false;
 let runtimeStarted=false;
+let statusEventsInstalled=false;
 
 const clone=v=>{try{return Core.safeClone?Core.safeClone(v):JSON.parse(JSON.stringify(v,(_k,x)=>typeof x==='bigint'?String(x):x))}catch{return String(v)}};
 const inferDomain=action=>{
@@ -159,7 +159,7 @@ async function execute(input={}){
 }
 
 function health(){
-  discoverActions();const s=registry.summary();return{version:'1.1',uptimeMs:Math.round(performance.now()-started),registry:s,adapters:[...adapters.keys()],peerConnected:Boolean(openPeerChannel()),sessionAuthorized:Boolean($('#allowRequests')?.checked),secureContext:isSecureContext,extensionBus:typeof window.SUPER_API_EXT_HANDLE==='function',trackedPeers:[...(window.__superApiTrackedPeers||[])].length,trackedChannels:[...(window.__superApiTrackedChannels||[])].length,pending:pending.size,telemetry:telemetry.length};
+  discoverActions();const s=registry.summary();return{version:'1.2',uptimeMs:Math.round(performance.now()-started),registry:s,adapters:[...adapters.keys()],peerConnected:Boolean(openPeerChannel()),sessionAuthorized:Boolean($('#allowRequests')?.checked),secureContext:isSecureContext,extensionBus:typeof window.SUPER_API_EXT_HANDLE==='function',trackedPeers:[...(window.__superApiTrackedPeers||[])].length,trackedChannels:[...(window.__superApiTrackedChannels||[])].length,pending:pending.size,telemetry:telemetry.length,eventDriven:true};
 }
 function catalog(filter={}){discoverActions();return registry.list(filter).map(clone);}
 function exportState(){return{health:health(),capabilities:registry.export(),telemetry:clone(telemetry)}};
@@ -205,15 +205,25 @@ function attachActionObserver(){
   if(select)observer.observe(select,{childList:true});
 }
 
+function installStatusEvents(){
+  if(statusEventsInstalled)return;
+  statusEventsInstalled=true;
+  for(const id of ['allowRequests','hostBtn','controllerBtn']){
+    const el=$(`#${id}`);
+    if(el)el.addEventListener(id==='allowRequests'?'change':'click',scheduledRefresh);
+  }
+  window.addEventListener('online',scheduledRefresh);
+  window.addEventListener('offline',scheduledRefresh);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)scheduledRefresh()});
+}
+
 function startRuntime(){
   if(runtimeStarted)return;
   runtimeStarted=true;
-  ui();attachActionObserver();
-  refreshInterval=setInterval(()=>{discoverActions();renderStatus();attachActionObserver()},3000);
+  ui();attachActionObserver();installStatusEvents();scheduledRefresh();
 }
 function stopRuntime(reason='Capability OS page lifecycle ended'){
   observer.disconnect();observedActionSelect=null;
-  if(refreshInterval){clearInterval(refreshInterval);refreshInterval=null;}
   for(const entry of [...pending.values()])entry.cancel?.(reason);
   runtimeStarted=false;
 }
