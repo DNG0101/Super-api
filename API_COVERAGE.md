@@ -1,157 +1,94 @@
-# API Coverage Snapshot
+# API Coverage Model
 
-Source baseline: MDN Web API specification index, checked 24 September 2026. This file records specification-level entries, not every individual interface/class. Browser support changes over time.
+Checked baseline date: **24 September 2026**.
 
-**Catalog entries:** 148  
-**Entries mapped to an executable local test:** 125
+Super API does not treat one static number as “all Web APIs.” Browsers expose different interfaces according to browser/version, Window vs Worker/Worklet realm, hardware, installed-PWA context, flags/origin trials, permissions and instantiated objects. The lab therefore measures coverage through multiple complementary layers.
 
-| # | Web API specification | Category | Lab mode |
-|---:|---|---|---|
-| 1 | Attribution Reporting API | Privacy & ads | Runnable + detect |
-| 2 | Audio Output Devices API | Media & audio | Runnable + detect |
-| 3 | Audio Session API | Media & audio | Runnable + detect |
-| 4 | Background Fetch API | Background & PWA | Detect / external-context |
-| 5 | Background Synchronization API | Background & PWA | Runnable + detect |
-| 6 | Background Tasks API | Scheduling | Runnable + detect |
-| 7 | Badging API | Background & PWA | Runnable + detect |
-| 8 | Barcode Detection API | Imaging | Runnable + detect |
-| 9 | Battery Status API | Device info | Runnable + detect |
-| 10 | Beacon API | Networking | Runnable + detect |
-| 11 | Broadcast Channel API | Messaging | Runnable + detect |
-| 12 | CSS Custom Highlight API | DOM & CSS | Runnable + detect |
-| 13 | CSS Font Loading API | DOM & CSS | Runnable + detect |
-| 14 | CSS Painting API | DOM & CSS | Detect / external-context |
-| 15 | CSS Properties and Values API | DOM & CSS | Runnable + detect |
-| 16 | CSS Typed Object Model API | DOM & CSS | Runnable + detect |
-| 17 | CSS Object Model (CSSOM) | DOM & CSS | Runnable + detect |
-| 18 | CSSOM view API | DOM & CSS | Runnable + detect |
-| 19 | Canvas API | Graphics | Runnable + detect |
-| 20 | Channel Messaging API | Messaging | Runnable + detect |
-| 21 | Clipboard API | User data | Runnable + detect |
-| 22 | Compression Streams API | Data processing | Runnable + detect |
-| 23 | Compute Pressure API | Device info | Runnable + detect |
-| 24 | Console API | Developer | Runnable + detect |
-| 25 | Contact Picker API | User data | Runnable + detect |
-| 26 | Content Index API | Background & PWA | Detect / external-context |
-| 27 | Cookie Store API | Storage | Runnable + detect |
-| 28 | Credential Management API | Identity | Runnable + detect |
-| 29 | Document Object Model (DOM) | DOM & CSS | Runnable + detect |
-| 30 | Device Memory API | Device info | Runnable + detect |
-| 31 | Device orientation events | Sensors | Runnable + detect |
-| 32 | Device Posture API | Device info | Runnable + detect |
-| 33 | Document Picture-in-Picture API | Media & audio | Runnable + detect |
-| 34 | EditContext API | Input | Runnable + detect |
-| 35 | Encoding API | Data processing | Runnable + detect |
-| 36 | Encrypted Media Extensions API | Media & audio | Detect / external-context |
-| 37 | EyeDropper API | User interaction | Runnable + detect |
-| 38 | Federated Credential Management (FedCM) API | Identity | Runnable + detect |
-| 39 | Fenced Frame API | Privacy & ads | Detect / external-context |
-| 40 | Fetch API | Networking | Runnable + detect |
-| 41 | File API | Files | Runnable + detect |
-| 42 | File System API | Files | Runnable + detect |
-| 43 | File and Directory Entries API | Files | Detect / external-context |
-| 44 | Force Touch events | Input | Detect / external-context |
-| 45 | Fullscreen API | User interaction | Runnable + detect |
-| 46 | Gamepad API | Input | Runnable + detect |
-| 47 | Geolocation API | Sensors | Runnable + detect |
-| 48 | Geometry interfaces | Graphics | Runnable + detect |
-| 49 | HTML DOM API | DOM & CSS | Runnable + detect |
-| 50 | HTML Drag and Drop API | Input | Runnable + detect |
-| 51 | HTML Sanitizer API | Security | Runnable + detect |
-| 52 | History API | Navigation | Runnable + detect |
-| 53 | Houdini APIs | DOM & CSS | Detect / external-context |
-| 54 | Idle Detection API | Sensors | Runnable + detect |
-| 55 | IndexedDB API | Storage | Runnable + detect |
-| 56 | Ink API | Input | Runnable + detect |
-| 57 | InputDeviceCapabilities API | Input | Runnable + detect |
-| 58 | Insertable Streams for MediaStreamTrack API | Media & audio | Runnable + detect |
-| 59 | Intersection Observer API | Observers | Runnable + detect |
-| 60 | Invoker Commands API | DOM & CSS | Detect / external-context |
-| 61 | JS Self-Profiling API | Performance | Detect / external-context |
-| 62 | Keyboard API | Input | Runnable + detect |
-| 63 | Launch Handler API | Background & PWA | Detect / external-context |
-| 64 | Local Font Access API | User data | Runnable + detect |
-| 65 | MediaStream Image Capture API | Imaging | Runnable + detect |
-| 66 | Media Capabilities API | Media & audio | Runnable + detect |
-| 67 | Media Capture and Streams API (Media Stream) | Media & audio | Runnable + detect |
-| 68 | Media Session API | Media & audio | Runnable + detect |
-| 69 | Media Source API | Media & audio | Runnable + detect |
-| 70 | MediaStream Recording API | Media & audio | Runnable + detect |
-| 71 | Navigation API | Navigation | Runnable + detect |
-| 72 | Network Information API | Device info | Runnable + detect |
-| 73 | Notifications API | Background & PWA | Runnable + detect |
-| 74 | Page Visibility API | Navigation | Runnable + detect |
-| 75 | Payment Request API | Payments | Runnable + detect |
-| 76 | Performance APIs | Performance | Runnable + detect |
-| 77 | Permissions API | Security | Runnable + detect |
-| 78 | Picture-in-Picture API | Media & audio | Runnable + detect |
-| 79 | Pointer events | Input | Runnable + detect |
-| 80 | Pointer Lock API | Input | Runnable + detect |
-| 81 | Popover API | DOM & CSS | Runnable + detect |
-| 82 | Presentation API | Media & audio | Detect / external-context |
-| 83 | Prioritized Task Scheduling API | Scheduling | Runnable + detect |
-| 84 | Private State Token API | Privacy & ads | Detect / external-context |
-| 85 | Prompt API | AI | Runnable + detect |
-| 86 | Push API | Background & PWA | Detect / external-context |
-| 87 | Remote Playback API | Media & audio | Detect / external-context |
-| 88 | Reporting API | Performance | Runnable + detect |
-| 89 | Resize Observer API | Observers | Runnable + detect |
-| 90 | SVG API | Graphics | Runnable + detect |
-| 91 | Screen Capture API | Media & audio | Runnable + detect |
-| 92 | Screen Orientation API | Device info | Runnable + detect |
-| 93 | Screen Wake Lock API | Device info | Runnable + detect |
-| 94 | Selection API | DOM & CSS | Runnable + detect |
-| 95 | Sensor APIs | Sensors | Runnable + detect |
-| 96 | Server-sent events | Networking | Detect / external-context |
-| 97 | Service Worker API | Background & PWA | Runnable + detect |
-| 98 | Shared Storage API | Privacy & ads | Detect / external-context |
-| 99 | Speculation Rules API | Navigation | Runnable + detect |
-| 100 | Storage API | Storage | Runnable + detect |
-| 101 | Storage Access API | Storage | Runnable + detect |
-| 102 | Streams API | Data processing | Runnable + detect |
-| 103 | Summarizer API | AI | Runnable + detect |
-| 104 | Topics API | Privacy & ads | Detect / external-context |
-| 105 | Touch events | Input | Runnable + detect |
-| 106 | Translator and Language Detector APIs | AI | Runnable + detect |
-| 107 | Trusted Types API | Security | Runnable + detect |
-| 108 | UI Events | Input | Runnable + detect |
-| 109 | URL API | Navigation | Runnable + detect |
-| 110 | URL Fragment Text Directives | Navigation | Detect / external-context |
-| 111 | URL Pattern API | Navigation | Runnable + detect |
-| 112 | User Preferences API | Device info | Runnable + detect |
-| 113 | User-Agent Client Hints API | Device info | Runnable + detect |
-| 114 | Vibration API | Device info | Runnable + detect |
-| 115 | View Transition API | DOM & CSS | Runnable + detect |
-| 116 | Viewport Segments API | Device info | Detect / external-context |
-| 117 | VirtualKeyboard API | Input | Runnable + detect |
-| 118 | Web Bluetooth API | Hardware | Runnable + detect |
-| 119 | Web Periodic Background Synchronization API | Background & PWA | Detect / external-context |
-| 120 | Web Animations API | DOM & CSS | Runnable + detect |
-| 121 | Web Audio API | Media & audio | Runnable + detect |
-| 122 | Web Authentication API | Identity | Runnable + detect |
-| 123 | Web Components | DOM & CSS | Runnable + detect |
-| 124 | Web Crypto API | Security | Runnable + detect |
-| 125 | Web Locks API | Scheduling | Runnable + detect |
-| 126 | Web MIDI API | Hardware | Runnable + detect |
-| 127 | Web NFC API | Hardware | Runnable + detect |
-| 128 | Web Serial API | Hardware | Runnable + detect |
-| 129 | Web Share API | User interaction | Runnable + detect |
-| 130 | Web Speech API | Media & audio | Runnable + detect |
-| 131 | Web Storage API | Storage | Runnable + detect |
-| 132 | Web Workers API | Scheduling | Runnable + detect |
-| 133 | Web-based Payment Handler API | Payments | Detect / external-context |
-| 134 | WebCodecs API | Media & audio | Runnable + detect |
-| 135 | WebGL: 2D and 3D graphics for the web | Graphics | Runnable + detect |
-| 136 | WebGPU API | Graphics | Runnable + detect |
-| 137 | WebHID API | Hardware | Runnable + detect |
-| 138 | WebOTP API | Identity | Runnable + detect |
-| 139 | WebRTC API | Networking | Runnable + detect |
-| 140 | WebSocket API (WebSockets) | Networking | Runnable + detect |
-| 141 | WebTransport API | Networking | Runnable + detect |
-| 142 | WebUSB API | Hardware | Runnable + detect |
-| 143 | WebVR API | XR | Detect / external-context |
-| 144 | WebVTT API | Media & audio | Runnable + detect |
-| 145 | WebXR Device API | XR | Runnable + detect |
-| 146 | Window Controls Overlay API | Background & PWA | Runnable + detect |
-| 147 | Window Management API | User data | Runnable + detect |
-| 148 | XMLHttpRequest API | Networking | Runnable + detect |
+## 1. Fixed specification-family baseline
+
+`catalog.js` contains **148 MDN Web API specification-family entries**. This is useful for category-level navigation and stable feature detection, but it is intentionally not described as the total number of Web API interfaces.
+
+A specification family can expose many interfaces/classes. For example, one family such as WebRTC or WebGPU contains numerous individual objects that only exist after a connection/device/context is created.
+
+## 2. Primary executable tests
+
+`app.js` contains the main practical test actions, including media capture, camera/torch, microphone, screen capture, geolocation, clipboard, files, storage, workers, notifications, Bluetooth, USB, Serial, HID, NFC, MIDI, WebAuthn capability checks, WebXR/WebGPU/WebGL/WebCodecs, sensors, sharing, Wake Lock, networking, cryptography, DOM/CSS and many more.
+
+## 3. Extended and server-backed calls
+
+`api-extensions.js` covers API families that previously only had detection and APIs that need configurable protocol endpoints. Examples include Background Fetch, CSS Painting, Content Index, EME/ClearKey, Fenced Frames, File and Directory Entries, Force Touch, Houdini, Invoker Commands, JS Self-Profiling, Launch Handler, Presentation, Private State Tokens, Push state, Remote Playback, SSE, Shared Storage, Topics, Text Fragments, Viewport Segments, Periodic Sync, Payment Handler, legacy WebVR, WebSocket and WebTransport.
+
+## 4. Deep executable paths
+
+`deep-api-tests.js` goes beyond surface detection for selected powerful APIs. It instantiates/uses WebGPU devices, inline WebXR, WebAuthn creation, files/directories, Bluetooth GATT, USB/HID opens, MediaSource, VideoFrame/WebCodecs, Push subscriptions, Periodic Sync, FedCM, Presentation, Remote Playback, orientation locking and Service Worker message channels.
+
+## 5. Emerging APIs
+
+`emerging-apis.js` exercises newer browser surfaces including Prompt/LanguageModel, Writer, Rewriter, Proofreader, Summarizer, Translator, Language Detector, `fetchLater()`, Digital Credentials presentation, CropTarget, RestrictionTarget, CaptureController, handwriting recognition, WebMCP, `highlightsFromPoint()` and FileSystemObserver.
+
+## 6. Latest platform/version tests
+
+`latest-platform.js` targets newly shipping/beta browser capabilities rather than waiting for the fixed catalog. Current tests include:
+
+- CPU Performance API (`navigator.cpuPerformance`)
+- `<camera>`, `<microphone>`, `<usermedia>` and `<geolocation>` capability-element implementation detection
+- configurable WebAudio `renderSizeHint`
+- WebSocket options dictionaries and `targetAddressSpace`
+- Fetch abort-reason behavior
+- modern WebCrypto algorithms and new KEM methods
+- renewed HTML insertion/streaming methods
+- Get Installed Related Apps summary
+- Digital Credentials issuance (payload redacted)
+- WebTransport request headers / response headers
+- newest Window Management surfaces (non-destructive detection)
+- CSSPseudoElement access
+
+## 7. Runtime Window/interface discovery
+
+`runtime-surface.js` reflects what the **actual browser** exposes rather than depending on a hard-coded list. It inventories global constructors plus prototype methods/properties and important `navigator`, `document`, storage, media, GPU, XR, credentials, locks, clipboard and other objects. The full result can be exported to JSON.
+
+The generic dotted-path method runner is local-only and requires a local click; it is not unrestricted remote execution.
+
+## 8. Worker/worklet and instantiated-object discovery
+
+`realm-scanners.js` covers APIs invisible to a Window-only scanner:
+
+- DedicatedWorkerGlobalScope
+- SharedWorkerGlobalScope
+- ServiceWorkerGlobalScope
+- AudioWorkletGlobalScope / processor objects
+- WebGL/WebGL2 contexts and extension objects
+- WebGPU adapter/device/queue/encoder/buffer/texture/sampler objects
+- WebRTC peer/datachannel/transceiver/sender/receiver/SCTP objects
+- MediaStream/MediaStreamTrack objects
+- CacheStorage, StorageManager and IndexedDB objects
+
+The realm scan is available through the paired peer under the same one-session authorization and returns capability metadata rather than arbitrary method execution.
+
+## 9. Live MDN interface/API page inventory
+
+`mdn-live-index.js` can load the current `mdn/content` `files/en-us/web/api` directory on demand. This gives the page a live inventory of individual MDN Web/API pages and compares normalized page names with globals exposed by the current browser.
+
+A page without an exact Window-global match is not automatically missing: it can be worker-only, worklet-only, instance-only, an event/dictionary, an overview page, unsupported in that browser, or exposed under another name. The realm/runtime scanners handle those distinctions more accurately.
+
+## What “implemented” means
+
+The UI should distinguish these states rather than falsely reporting every catalog item as identical:
+
+- **Callable** — an explicit executable test exists.
+- **Deep callable** — an instantiated end-to-end path exists.
+- **Runtime exposed** — the browser exposes the interface/member.
+- **Realm exposed** — a Worker/Worklet/context/instance exposes it.
+- **Endpoint required** — a compatible external server/provider is necessary.
+- **Browser permission/activation required** — JavaScript cannot pre-grant the native requirement.
+- **Not exposed** — this browser/version/context does not currently expose the surface.
+
+## Authorization model
+
+There is **one Super API application-level authorization** per page session. After it is enabled, explicitly implemented peer tests do not request another Super API approval.
+
+Browser and operating-system permission prompts, device/file choosers, browser-controlled capability elements and transient-user-activation requirements are separate platform protections. A normal webpage cannot transform those distinct browser permissions into one universal browser permission.
+
+## Validation
+
+`.github/workflows/validate.yml` statically verifies all top-level JavaScript syntax, the web manifest, local HTML script/link references and Service Worker core-cache file references after repository changes.
