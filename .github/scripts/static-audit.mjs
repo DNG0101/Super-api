@@ -25,24 +25,23 @@ for (const f of rootJs) if (!scripts.includes(f)) fail(`root JS is not loaded by
 const sessionConsent = read('session-consent.js');
 const realmRpcPath = 'modules/realm-rpc.js';
 const realmWorkerPath = 'workers/realm-rpc-sw.js';
-if (!sessionConsent.includes(`'./${realmRpcPath}'`) && !sessionConsent.includes(`"./${realmRpcPath}"`)) {
-  fail(`session-consent.js does not load ${realmRpcPath}`);
-}
+const universalPath = 'modules/universal-api.js';
+if (!sessionConsent.includes(`'./${realmRpcPath}'`) && !sessionConsent.includes(`"./${realmRpcPath}"`)) fail(`session-consent.js does not load ${realmRpcPath}`);
 if (!fs.existsSync(path.join(root, realmRpcPath))) fail(`missing dynamic realm RPC module: ${realmRpcPath}`);
 const realmRpc = fs.existsSync(path.join(root, realmRpcPath)) ? read(realmRpcPath) : '';
-if (!realmRpc.includes(`'./${realmWorkerPath}'`) && !realmRpc.includes(`"./${realmWorkerPath}"`)) {
-  fail(`realm RPC module does not reference ${realmWorkerPath}`);
-}
+if (!realmRpc.includes(`'./${realmWorkerPath}'`) && !realmRpc.includes(`"./${realmWorkerPath}"`)) fail(`realm RPC module does not reference ${realmWorkerPath}`);
 if (!fs.existsSync(path.join(root, realmWorkerPath))) fail(`missing realm service-worker broker: ${realmWorkerPath}`);
 if (!realmRpc.includes("action: 'ext:realm-rpc'")) fail('realm RPC peer action is not wired');
 if (!realmRpc.includes("$('#allowRequests')?.checked")) fail('realm RPC does not enforce the single session authorization');
 
-console.log(JSON.stringify({
-  scripts: scripts.length,
-  rootJs: rootJs.length,
-  sessionConsentCount: 1,
-  interfaceHarness: true,
-  realmRpc: true,
-  realmWorkerBroker: true
-}, null, 2));
+if (!sessionConsent.includes(`'./${universalPath}'`) && !sessionConsent.includes(`"./${universalPath}"`)) fail(`session-consent.js does not load ${universalPath}`);
+if (!fs.existsSync(path.join(root, universalPath))) fail(`missing universal API module: ${universalPath}`);
+const universal = fs.existsSync(path.join(root, universalPath)) ? read(universalPath) : '';
+if (!universal.includes("msg?.action!=='ext:universal-api'") && !universal.includes("msg?.action !== 'ext:universal-api'")) fail('universal API peer action is not wired');
+if (!universal.includes("$('#allowRequests')?.checked")) fail('universal API peer runner does not enforce single session authorization');
+for (const protocol of ['graphql','json-rpc','soap','websocket','sse','webtransport','grpc-web']) if (!universal.includes(protocol)) fail(`universal API module missing protocol: ${protocol}`);
+for (const source of ['api.apis.guru','graphql-apis']) if (!universal.includes(source)) fail(`universal API module missing discovery source: ${source}`);
+if (!sw.includes(`'./${universalPath}'`)) fail('service worker CORE missing universal API module');
+
+console.log(JSON.stringify({scripts:scripts.length,rootJs:rootJs.length,sessionConsentCount:1,interfaceHarness:true,realmRpc:true,realmWorkerBroker:true,universalApi:true,externalProtocols:8},null,2));
 if (process.exitCode) process.exit(process.exitCode);
