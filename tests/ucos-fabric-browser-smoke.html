@@ -25,7 +25,11 @@ window.SUPER_API_EXT_HANDLE=()=>{};
 (async()=>{
  try{
   if(!window.SuperApiUCOS)throw new Error('SuperApiUCOS missing');
-  if(!document.querySelector('#ucosFabricShell'))throw new Error('UCOS shell missing');
+  if(!document.querySelector('#ucosOS'))throw new Error('UCOS full-screen shell missing');
+  if(!document.body.classList.contains('ucos-os-active'))throw new Error('UCOS shell did not become primary viewport');
+  if(!document.querySelector('#ucosDesktop'))throw new Error('UCOS desktop missing');
+  if(!document.querySelector('#ucosDock'))throw new Error('UCOS dock missing');
+  if(!document.querySelector('#ucosLauncherOverlay'))throw new Error('UCOS launcher missing');
   if(!document.querySelector('#legacyLab'))throw new Error('legacy lab was removed');
   const h=SuperApiUCOS.health();
   if(h.capabilities.total<2)throw new Error('capabilities not mirrored');

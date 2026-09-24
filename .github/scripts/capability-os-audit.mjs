@@ -57,8 +57,10 @@ if(!fabric.includes('__superApiTrackedChannels'))fail('UCOS fabric is not connec
 if(!fabric.includes("type:'ucos:advertise'" )&&!fabric.includes("msg?.type==='ucos:advertise'"))fail('UCOS fabric capability advertisement protocol missing');
 if(/\beval\s*\(/.test(fabric)||/new\s+Function\s*\(/.test(fabric))fail('UCOS fabric contains unrestricted dynamic code execution');
 if(fabric.includes('setInterval('))fail('UCOS fabric must remain event-driven; permanent polling detected');
-if(!shell.includes('Super API Universal Capability Fabric'))fail('UCOS shell title missing');
-if(!shell.includes('Developer Lab'))fail('UCOS shell does not preserve navigation to the existing lab');
+
+for(const token of ['Super API UCOS','Universal Capability OS','id=\'ucosOS\'','ucos-os-active','ucosDesktop','ucosDock','ucosLauncherOverlay','openApp','registerApp','Developer Lab','enterLab','leaveLab'])if(!shell.includes(token))fail(`UCOS Shell v3 missing ${token}`);
+for(const app of ["id:'files'","id:'devices'","id:'network'","id:'capabilities'","id:'terminal'","id:'camera'","id:'flows'","id:'settings'","id:'devlab'"])if(!shell.includes(app))fail(`UCOS Shell v3 missing system app ${app}`);
+if(/\beval\s*\(/.test(shell)||/new\s+Function\s*\(/.test(shell))fail('UCOS shell contains unrestricted dynamic code execution');
 
 if(/setTimeout\s*\([^\n]*scan\s*\(/.test(runtimeSurface))fail('runtime surface performs exhaustive reflection automatically during startup');
 if(!runtimeSurface.includes('Scan every exposed surface'))fail('runtime surface no longer exposes explicit exhaustive scan control');
@@ -70,7 +72,7 @@ if((index.match(/id="allowRequests"/g)||[]).length!==1)fail('expected exactly on
 for(const keyword of ['Capability OS core matrix passed','single session remote policy','dependency cycle detection','compatibility matrix','pair matrix combinations','command IDs are unique under burst concurrency','policy combination matrix','result envelope handles circular and bigint results','execution plan rejects unsupported capability operation'])if(!test.includes(keyword))fail(`Capability OS tests missing ${keyword}`);
 for(const keyword of ['UCOS merged capability registry passed','UCOS provider resolution passed','UCOS transport availability passed','UCOS local and remote routing passed','UCOS capability advertisement passed','UCOS request validation passed','UCOS result envelope serialization passed','UCOS_FABRIC_CORE_PASS'])if(!fabricTest.includes(keyword))fail(`UCOS fabric tests missing ${keyword}`);
 for(const keyword of ['CAPABILITY_OS_RUNTIME_PASS','dynamic discovery failed','peer close did not reject immediately','pending commands leaked','unsupported operation reached adapter'])if(!runtimeSmoke.includes(keyword))fail(`runtime smoke missing ${keyword}`);
-if(!fabricSmoke.includes('UCOS_FABRIC_BROWSER_PASS')||!fabricSmoke.includes('legacy lab was removed'))fail('UCOS fabric browser smoke does not validate boot + compatibility');
+for(const keyword of ['UCOS_FABRIC_BROWSER_PASS','legacy lab was removed','UCOS full-screen shell missing','UCOS shell did not become primary viewport','UCOS desktop missing','UCOS dock missing','UCOS launcher missing'])if(!fabricSmoke.includes(keyword))fail(`UCOS fabric browser smoke missing ${keyword}`);
 for(const keyword of ['PRODUCTION_BROWSER_PASS','Main thread responsiveness probe failed','Uncaught runtime exception','pendingNetwork','failedNetwork','runtimeAutoScanned'])if(!productionSmoke.includes(keyword))fail(`production browser smoke missing ${keyword}`);
 if(!workflow.includes('Capability OS core matrix')||!workflow.includes('node tests/capability-os-core.test.cjs'))fail('workflow does not run Capability OS core matrix');
 if(!workflow.includes('UCOS fabric core matrix')||!workflow.includes('node tests/ucos-fabric-core.test.cjs'))fail('workflow does not run UCOS fabric core matrix');
@@ -79,7 +81,7 @@ if(!workflow.includes('tests/capability-os-runtime-smoke.html')||!workflow.inclu
 if(!workflow.includes('tests/ucos-fabric-browser-smoke.html')||!workflow.includes('UCOS_FABRIC_BROWSER_PASS'))fail('workflow does not run UCOS fabric browser smoke');
 if(!workflow.includes('node tests/production-browser-smoke.mjs'))fail('workflow does not run the actual production-page CDP responsiveness test');
 
-if(!sw.includes("super-api-peer-lab-v20"))fail('service worker cache generation was not advanced for UCOS fabric');
+if(!sw.includes("super-api-peer-lab-v21"))fail('service worker cache generation was not advanced for UCOS Shell v3');
 if(!sw.includes('async function networkFirst'))fail('service worker lacks network-first helper');
 if(!sw.includes("req.destination==='script'"))fail('service worker does not deliver executable scripts network-first');
 if(sw.includes("c.addAll(CORE)).catch(()=>{})"))fail('service worker silently ignores incomplete install cache failures');
@@ -87,13 +89,17 @@ if(sw.includes("c.addAll(CORE)).catch(()=>{})"))fail('service worker silently ig
 for(const section of ['Capability Registry','Execution Kernel','Adapter Bus','Session Policy','Peer Transport','Telemetry','Trust boundaries','Failure semantics'])if(!doc.includes(section))fail(`architecture document missing section: ${section}`);
 
 console.log(JSON.stringify({
-  architecture:'Universal Browser Capability OS + Universal Capability Fabric',
+  architecture:'Universal Browser Capability OS + Universal Capability Fabric + Shell v3',
   domains:13,
   operations:12,
   adapters:['extension-local','peer'],
   fabricProviders:['browser-native-basic','legacy-extension-local'],
   fabricTransports:['loopback','webrtc-compat'],
   nodeCapabilityAdvertisement:true,
+  fullScreenShell:true,
+  windowManager:true,
+  appLauncher:true,
+  systemApps:['Files','Devices','Network Center','Capability Center','Camera','Terminal','Flows','Settings','Developer Lab'],
   legacyLabPreserved:true,
   singleAppSessionAuthorization:true,
   nativeBrowserSecurityPreserved:true,
@@ -110,7 +116,7 @@ console.log(JSON.stringify({
   fabricBrowserSmoke:true,
   productionPageResponsivenessSmoke:true,
   freshScriptDelivery:true,
-  serviceWorkerGeneration:'v20',
+  serviceWorkerGeneration:'v21',
   offlineControlPlane:true,
   extensionBusIntegration:true,
   peerTransportIntegration:true
