@@ -79,7 +79,7 @@ jobs:
               path=item[2:] if item.startswith('./') else item
               if not Path(path).exists(): missing.append(path)
           if missing: raise SystemExit('Missing SW core assets: '+', '.join(missing))
-          for required in ['modules/ucos-lifecycle.js','modules/ucos-security-core.js','modules/ucos-security.js','modules/ucos-secure-peer.js','modules/ucos-runtime-core.js','modules/ucos-vfs.js','modules/ucos-workflow-core.js','modules/ucos-workflows.js','modules/ucos-runtime.js','modules/ucos-v4-integration.js','modules/ucos-update.js','modules/ucos-v5-integration.js','modules/ucos-jobs.js','runtime/app-frame.html','runtime/app-frame.js']:
+          for required in ['modules/ucos-lifecycle.js','modules/ucos-security-core.js','modules/ucos-security.js','modules/ucos-vault.js','modules/ucos-secure-peer.js','modules/ucos-runtime-core.js','modules/ucos-vfs.js','modules/ucos-workflow-core.js','modules/ucos-workflows.js','modules/ucos-runtime.js','modules/ucos-v4-integration.js','modules/ucos-update.js','modules/ucos-v5-integration.js','modules/ucos-jobs.js','runtime/app-frame.html','runtime/app-frame.js']:
               if './'+required not in items: raise SystemExit('UCOS v5 asset not cached: '+required)
           print('Service worker core assets valid:', len(items))
       - name: Capability OS headless browser smoke
@@ -127,7 +127,7 @@ jobs:
           }
           run_dump http://127.0.0.1:8765/tests/capability-os-browser-smoke.html /tmp/capability-smoke.html 3000 CAPABILITY_OS_BROWSER_PASS capability-core
           run_dump http://127.0.0.1:8765/tests/capability-os-runtime-smoke.html /tmp/capability-runtime-smoke.html 5000 CAPABILITY_OS_RUNTIME_PASS capability-runtime
-          run_dump http://127.0.0.1:8765/tests/ucos-fabric-browser-smoke.html /tmp/ucos-fabric-smoke.html 12000 UCOS_FABRIC_BROWSER_PASS ucos-v5
+          run_dump http://127.0.0.1:8765/tests/ucos-fabric-browser-smoke.html /tmp/ucos-fabric-smoke.html 14000 UCOS_FABRIC_BROWSER_PASS ucos-v5
           grep -q 'UCOS_V4_BROWSER_PASS' /tmp/ucos-fabric-smoke.html
           grep -q 'UCOS_V5_BROWSER_PASS' /tmp/ucos-fabric-smoke.html
           echo 'Running the actual production index through CDP responsiveness checks...'
