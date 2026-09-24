@@ -10,12 +10,37 @@ t('secure context block',()=>{const c=C.normalizeCapability({domain:'device',nam
 t('external requirement block',()=>{const c=C.normalizeCapability({domain:'wireless',name:'LoRa bridge',operations:['connect'],externalRequirement:'WebSerial radio bridge'});assert.equal(C.evaluatePolicy(c,{secureContext:true,externalAvailable:false}).allowed,false)});
 t('command validation success',()=>{const x=C.validateCommand({capabilityId:'web:fetch',operation:'call',args:[1]});assert.equal(x.valid,true);assert.equal(x.command.capabilityId,'web:fetch')});
 t('command validation failure',()=>{const x=C.validateCommand({operation:'bogus'});assert.equal(x.valid,false);assert.ok(x.errors.includes('capabilityId-required'));assert.ok(x.errors.includes('invalid-operation'))});
+t('command IDs are unique under burst concurrency',()=>{const ids=new Set();for(let i=0;i<5000;i++)ids.add(C.validateCommand({capabilityId:'web:test',operation:'test'}).command.id);assert.equal(ids.size,5000)});
 t('execution plan',()=>{const c=C.normalizeCapability({domain:'network',name:'WebSocket',operations:['connect']});const x=C.buildExecutionPlan(c,{capabilityId:c.id,operation:'connect'},{remote:true,sessionAuthorized:true,secureContext:true});assert.equal(x.ok,true);assert.ok(x.steps.includes('resolve-adapter'));assert.ok(x.steps.includes('record-telemetry'))});
+t('execution plan rejects unsupported capability operation',()=>{const c=C.normalizeCapability({domain:'network',name:'WebSocket',operations:['connect']});const x=C.buildExecutionPlan(c,{capabilityId:c.id,operation:'write'},{remote:false,secureContext:true});assert.equal(x.ok,false);assert.ok(x.reasons.includes('operation-not-supported'))});
 t('result envelope error',()=>{const x=C.resultEnvelope({commandId:'1',capabilityId:'x',operation:'call',status:'error',error:'boom'});assert.equal(x.ok,false);assert.equal(x.error,'boom')});
+t('result envelope handles circular and bigint results',()=>{const a={n:1,big:2n};a.self=a;const x=C.resultEnvelope({commandId:'1',capabilityId:'x',operation:'call',result:a});assert.equal(x.ok,true);assert.equal(x.result.big,'2');assert.equal(x.result.self,'[Circular]')});
+t('safe clone bounds depth and entries',()=>{let x={};let p=x;for(let i=0;i<20;i++){p.next={};p=p.next}const y=C.safeClone(x,{maxDepth:4});assert.match(JSON.stringify(y),/MaxDepth/)});
 t('dependency order',()=>{const x=C.dependencyOrder([{id:'runtime',dependencies:['core']},{id:'core',dependencies:[]}]);assert.deepEqual(x,['core','runtime'])});
 t('dependency cycle detection',()=>assert.throws(()=>C.dependencyOrder([{id:'a',dependencies:['b']},{id:'b',dependencies:['a']}]),/dependency-cycle/));
+t('strict dependency missing detection',()=>assert.throws(()=>C.dependencyOrder([{id:'runtime',dependencies:['missing']}],{strict:true}),/dependency-missing/));
 t('compatibility matrix',()=>{const caps=[C.normalizeCapability({domain:'web',name:'Fetch',operations:['call']}),C.normalizeCapability({domain:'device',name:'Camera',operations:['stream'],nativePermission:true})];const env=[{id:'local',secureContext:true,remote:false},{id:'peer',secureContext:true,remote:true,sessionAuthorized:true}];assert.equal(C.compatibilityMatrix(caps,env).length,4)});
 t('pair matrix combinations',()=>assert.equal(C.pairMatrix(C.DOMAINS,C.OPERATIONS).length,C.DOMAINS.length*C.OPERATIONS.length));
+
+t('policy combination matrix',()=>{
+  const bool=[false,true];let checked=0;
+  for(const remote of bool)for(const sessionAuthorized of bool)for(const secureContext of bool)for(const remoteAllowed of bool)for(const nativePermission of bool){
+    const c=C.normalizeCapability({domain:'device',name:`cap-${checked}`,operations:['test'],remoteAllowed,nativePermission});
+    const p=C.evaluatePolicy(c,{remote,sessionAuthorized,secureContext,nativePermissionGranted:false});
+    if(remote&&!sessionAuthorized)assert.equal(p.allowed,false);
+    if(!secureContext)assert.equal(p.allowed,false);
+    if(remote&&!remoteAllowed)assert.equal(p.allowed,false);
+    if(nativePermission&&secureContext&&(!remote||sessionAuthorized)&&(!remote||remoteAllowed))assert.equal(p.allowed,true);
+    checked++;
+  }
+  assert.equal(checked,32);
+});
+
 for(const domain of C.DOMAINS)t(`domain id contract ${domain}`,()=>assert.match(C.capabilityId(domain,'Sample Capability'),new RegExp(`^${domain}:`)));
 for(const op of C.OPERATIONS)t(`operation contract ${op}`,()=>assert.equal(C.validateCommand({capabilityId:'web:test',operation:op}).valid,true));
+for(const domain of C.DOMAINS)for(const op of C.OPERATIONS)t(`domain/operation plan ${domain}/${op}`,()=>{
+  const c=C.normalizeCapability({domain,name:`${domain}-${op}`,operations:[op]});
+  const plan=C.buildExecutionPlan(c,{capabilityId:c.id,operation:op},{remote:false,secureContext:true});
+  assert.equal(plan.ok,true);
+});
 console.log(`Capability OS core matrix passed: ${passed} groups; ${C.DOMAINS.length} domains; ${C.OPERATIONS.length} operations; ${C.DOMAINS.length*C.OPERATIONS.length} domain/operation combinations`);
