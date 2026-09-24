@@ -23,6 +23,7 @@ window.SUPER_API_EXT_HANDLE=()=>{};
 <script src="../modules/ucos-lifecycle.js"></script>
 <script src="../modules/ucos-security-core.js"></script>
 <script src="../modules/ucos-security.js"></script>
+<script src="../modules/ucos-vault.js"></script>
 <script src="../modules/ucos-secure-peer.js"></script>
 <script src="../modules/ucos-runtime-core.js"></script>
 <script src="../modules/ucos-vfs.js"></script>
@@ -42,6 +43,7 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   if(!window.SuperApiUCOSWorkflows)throw new Error('UCOS workflows missing');
   if(!window.SuperApiUCOSV4)throw new Error('UCOS v4 integration missing');
   if(!window.SuperApiUCOSSecurity)throw new Error('UCOS security missing');
+  if(!window.SuperApiUCOSVault)throw new Error('UCOS vault missing');
   if(!window.SuperApiUCOSSecurePeer)throw new Error('UCOS secure peer missing');
   if(!window.SuperApiUCOSLifecycle)throw new Error('UCOS lifecycle missing');
   if(!window.SuperApiUCOSV5)throw new Error('UCOS v5 integration missing');
@@ -56,6 +58,12 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   if(h.providers.length<2)throw new Error('providers missing');
   if(h.transports.length<3)throw new Error('secure transport missing');
   const ident=await SuperApiUCOSSecurity.ready;if(!ident?.deviceId?.startsWith('dev-'))throw new Error('cryptographic device identity missing');
+  const vaultHealth=await SuperApiUCOSVault.ready;if(vaultHealth.algorithm!=='AES-GCM'||vaultHealth.keyExtractable!==false)throw new Error('vault master key is not non-exportable AES-GCM');
+  await SuperApiUCOSVault.set('smoke.secret',{token:'not-plaintext-at-rest',n:5},{metadata:{purpose:'smoke'}});
+  const secret=await SuperApiUCOSVault.get('smoke.secret');if(secret?.token!=='not-plaintext-at-rest'||secret?.n!==5)throw new Error('vault encrypt/decrypt failed');
+  if(!(await SuperApiUCOSVault.list()).some(x=>x.name==='smoke.secret'&&x.metadata?.purpose==='smoke'))throw new Error('vault metadata listing failed');
+  const rotated=await SuperApiUCOSVault.rotate();if(!rotated.rotated||rotated.secrets<1||(await SuperApiUCOSVault.get('smoke.secret'))?.n!==5)throw new Error('vault master rotation failed');
+  await SuperApiUCOSVault.remove('smoke.secret');if(await SuperApiUCOSVault.get('smoke.secret')!==null)throw new Error('vault delete failed');
   const env=await SuperApiUCOS.execute({capabilityId:'action:environment-info',operation:'execute',mode:'local'});
   if(!env.ok||!env.result)throw new Error('local provider execution failed');
 
@@ -91,6 +99,8 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   await SuperApiUCOSRuntime.grants.set('sandbox.test','action:environment-info',{state:'granted',scope:'once'});
   const mount=document.querySelector('#sandboxMount');
   let handle;await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('sandbox app did not become ready')),7000);handle=SuperApiUCOSRuntime.attachSandbox('sandbox.test',mount,{onReady:()=>{clearTimeout(timer);resolve()},onCrash:m=>{clearTimeout(timer);reject(new Error(m.error||'sandbox crashed'))}})});
+  const frame=handle.iframe;if(frame.getAttribute('sandbox')?.includes('allow-same-origin'))throw new Error('sandbox unexpectedly has same-origin privilege');
+  const csp=await fetch(frame.src.split('#')[0]).then(r=>r.text());if(!csp.includes("require-trusted-types-for 'script'")||!csp.includes("default-src 'none'"))throw new Error('sandbox CSP/Trusted Types policy missing');
   if(await SuperApiUCOSVFS.readText('/apps/data/sandbox.test/note.txt')!=='sandbox-ok')throw new Error('sandbox private VFS IPC failed');
   if((await SuperApiUCOSRuntime.grants.check('sandbox.test','action:environment-info')).state!=='prompt')throw new Error('once capability grant was not consumed');
   if(!SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid&&p.state==='running'))throw new Error('sandbox process manager state missing');
@@ -100,7 +110,7 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   await SuperApiUCOSVFS.remove('/apps/data/sandbox.test',{recursive:true});await SuperApiUCOSRuntime.uninstall('sandbox.test');
 
   await SuperApiUCOSV5.ready;if(SuperApiUCOSLifecycle.health().ready!==true)throw new Error('lifecycle did not mark boot ready');
-  const v5h=await SuperApiUCOSV5.health();if(v5h.version!==5||v5h.runtime.version!==5)throw new Error('UCOS v5 health contract missing');
+  const v5h=await SuperApiUCOSV5.health();if(v5h.version!==5||v5h.runtime.version!==5||v5h.vault?.keyExtractable!==false)throw new Error('UCOS v5 health contract missing');
   document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS UCOS_V4_BROWSER_PASS UCOS_V5_BROWSER_PASS';
  }catch(error){document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_FAIL '+error.message;throw error}
 })();
