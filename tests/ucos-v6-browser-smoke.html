@@ -1,0 +1,34 @@
+<!doctype html><html><head><meta charset="utf-8"><title>UCOS v6 browser smoke</title></head><body>
+<button id="hostBtn" class="primary">host</button><button id="controllerBtn">controller</button><input id="allowRequests" type="checkbox" checked><select id="remoteAction"><option value="environment-info">Environment</option></select><main></main><div id="mount"></div><pre id="result">running</pre>
+<script src="../modules/capability-os-core.js"></script><script>
+window.__superApiTrackedChannels=new Set();window.SuperApiCapabilityOS={discoverActions(){return{total:1}},catalog(){return[{id:'action:environment-info',domain:'web',name:'environment-info',operations:['execute'],metadata:{action:'environment-info'}}]},async execute(input){return{result:{ok:true,capabilityId:input.capabilityId}}}};
+</script>
+<script src="../modules/ucos-fabric-core.js"></script><script src="../modules/ucos-storage.js"></script><script src="../modules/ucos-fabric.js"></script><script src="../modules/ucos-lifecycle.js"></script><script src="../modules/ucos-security-core.js"></script><script src="../modules/ucos-security.js"></script><script src="../modules/ucos-vault.js"></script><script src="../modules/ucos-secure-peer.js"></script><script src="../modules/ucos-runtime-core.js"></script><script src="../modules/ucos-vfs.js"></script><script src="../modules/ucos-package-core.js"></script><script src="../modules/ucos-packages.js"></script><script src="../modules/ucos-workflow-core.js"></script><script src="../modules/ucos-workflows.js"></script><script src="../modules/ucos-runtime.js"></script>
+<script>
+(async()=>{try{
+ await SuperApiUCOSSecurity.ready;await SuperApiUCOSRuntime.ready;await SuperApiUCOSVFS.init();
+ if(!SuperApiUCOSPackages||SuperApiUCOSPackages.version!=='6.0.0')throw new Error('package manager missing');
+ const entry=`window.UCOSApp=async function(root,UCOS){
+   await UCOS.vfs.writeText('/boot.txt','package-ok');
+   UCOS.runtime.on('process-state',async d=>{if(d&&d.state==='suspended')await UCOS.vfs.writeText('/event.txt','suspended')});
+   const c=new AbortController();setTimeout(()=>c.abort(),20);try{await UCOS.workflows.run({id:'cancel-flow',steps:[{id:'wait',type:'delay',ms:1000}]},{},{signal:c.signal,timeoutMs:5000})}catch(e){await UCOS.vfs.writeText('/cancel.txt',e.name==='AbortError'||/abort|cancel/i.test(e.message)?'cancelled':'wrong-error')}
+   root.textContent='package-ready';
+ }`;
+ const pkg={format:'ucosapp',formatVersion:1,minUCOS:'^6.0.0',manifest:{id:'smoke.package',name:'Smoke Package',version:'1.0.0',entry:'main.js',capabilities:['system.vfs','system.workflow']},files:{'main.js':entry}};
+ const installed=await SuperApiUCOSPackages.install(pkg);if(!installed.integrity?.startsWith('sha256-'))throw new Error('package integrity missing');
+ const verify=await SuperApiUCOSPackages.verify('smoke.package');if(!verify.ok)throw new Error('package verification failed');
+ if(SuperApiUCOSRuntime.manifests.get('smoke.package')?.entry!=='package:smoke.package')throw new Error('package runtime manifest missing');
+ let handle;await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('packaged sandbox ready timeout')),8000);handle=SuperApiUCOSRuntime.attachSandbox('smoke.package',document.querySelector('#mount'),{onReady:()=>{clearTimeout(t);resolve()},onCrash:m=>{clearTimeout(t);reject(new Error(m.error||'package crash'))}})});
+ if(await SuperApiUCOSVFS.readText('/apps/data/smoke.package/boot.txt')!=='package-ok')throw new Error('package private VFS failed');
+ if(await SuperApiUCOSVFS.readText('/apps/data/smoke.package/cancel.txt')!=='cancelled')throw new Error('IPC workflow cancellation failed');
+ handle.suspend('v6-smoke');await new Promise(r=>setTimeout(r,80));if(await SuperApiUCOSVFS.readText('/apps/data/smoke.package/event.txt')!=='suspended')throw new Error('sandbox runtime event subscription failed');handle.resume();
+ await assertReject(()=>SuperApiUCOSPackages.install({...pkg,manifest:{...pkg.manifest,version:'0.9.0'}}),'downgrade');
+ const bad={...pkg,integrity:'sha256-deadbeef'};await assertReject(()=>SuperApiUCOSPackages.install(bad),'integrity');
+ const flow={id:'advanced',steps:[{id:'loop',type:'loop',items:[1,2,3],body:[{id:'set',type:'set',key:'last',value:'${loop.item}'}]},{id:'emit',type:'emit',dependsOn:['loop'],event:'v6.smoke',detail:{last:'${vars.last}'}}]};const run=await SuperApiUCOSWorkflows.run(flow);if(run.result.vars.last!==3)throw new Error('advanced workflow loop failed');
+ await handle.close();await SuperApiUCOSPackages.uninstall('smoke.package');try{await SuperApiUCOSVFS.remove('/apps/data/smoke.package',{recursive:true})}catch{}
+ if(await SuperApiUCOSPackages.get('smoke.package'))throw new Error('package uninstall failed');
+ document.querySelector('#result').textContent='UCOS_V6_BROWSER_PASS';
+ }catch(e){document.querySelector('#result').textContent='UCOS_V6_BROWSER_FAIL '+e.message;throw e}
+ async function assertReject(fn,label){let failed=false;try{await fn()}catch{failed=true}if(!failed)throw new Error(label+' rejection missing')}
+})();
+</script></body></html>
