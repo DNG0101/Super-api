@@ -24,13 +24,17 @@ const rootJs = fs.readdirSync(root).filter(x => x.endsWith('.js') && x !== 'sw.j
 for (const f of rootJs) if (!scripts.includes(f)) fail(`root JS is not loaded by index.html: ${f}`);
 
 const sessionConsent = read('session-consent.js');
+const peerHook = read('peer-hook.js');
 const realmRpcPath = 'modules/realm-rpc.js';
 const realmWorkerPath = 'workers/realm-rpc-sw.js';
 const universalCorePath = 'modules/universal-core.js';
 const universalPath = 'modules/universal-api.js';
 const universalV2Path = 'modules/universal-api-v2.js';
+const networkCorePath = 'modules/network-signal-core.js';
+const networkPath = 'modules/network-signal.js';
 
-for (const p of [realmRpcPath, realmWorkerPath, universalCorePath, universalPath, universalV2Path]) if (!exists(p)) fail(`missing required module: ${p}`);
+for (const p of [realmRpcPath, realmWorkerPath, universalCorePath, universalPath, universalV2Path, networkCorePath, networkPath]) if (!exists(p)) fail(`missing required module: ${p}`);
+
 if (!sessionConsent.includes(`'./${realmRpcPath}'`) && !sessionConsent.includes(`"./${realmRpcPath}"`)) fail(`session-consent.js does not load ${realmRpcPath}`);
 const realmRpc = exists(realmRpcPath) ? read(realmRpcPath) : '';
 if (!realmRpc.includes(`'./${realmWorkerPath}'`) && !realmRpc.includes(`"./${realmWorkerPath}"`)) fail(`realm RPC module does not reference ${realmWorkerPath}`);
@@ -59,13 +63,41 @@ if (!universalV2.includes("$('#allowRequests')?.checked")) fail('universal v2 pe
 for (const protocol of ['webdav','sparql','odata','graphql-ws','grpc-web','sse-fetch','websocket','stomp','mqtt','webtransport']) if (!universalV2.includes(protocol)) fail(`universal v2 missing protocol: ${protocol}`);
 for (const format of ['Postman','HAR','AsyncAPI','OpenRPC','WSDL','OData']) if (!universalV2.includes(format)) fail(`universal v2 missing import/metadata format: ${format}`);
 
-const testPath='tests/universal-core.test.cjs';
-if (!exists(testPath)) fail(`missing ${testPath}`);
-const testText = exists(testPath) ? read(testPath) : '';
-for (const keyword of ['gRPC-Web','MQTT','STOMP','SSE','cartesian']) if (!testText.includes(keyword)) fail(`universal protocol tests missing ${keyword}`);
+// Network + signal architecture is mandatory.
+for (const p of [networkCorePath, networkPath]) {
+  if (!sessionConsent.includes(`'./${p}'`) && !sessionConsent.includes(`"./${p}"`)) fail(`session-consent.js does not load ${p}`);
+  if (!sw.includes(`'./${p}'`)) fail(`service worker CORE missing ${p}`);
+}
+const networkCorePos=sessionConsent.indexOf(networkCorePath), networkPos=sessionConsent.indexOf(networkPath);
+if (!(networkCorePos >= 0 && networkPos > networkCorePos)) fail('network diagnostics dependency load order must be network-signal-core -> network-signal');
+if (!peerHook.includes('__superApiTrackedPeers')) fail('peer-hook.js does not track RTCPeerConnection objects');
+if (!peerHook.includes('__superApiTrackPeer')) fail('peer-hook.js does not expose peer tracking helper');
+
+const networkCore = read(networkCorePath);
+for (const symbol of ['classifyAddress','connectionSnapshot','timingMetrics','resourceSummary','summarizeRtcStats','deriveQuality','deltaRate','NETWORK_SURFACES']) if (!networkCore.includes(symbol)) fail(`network core missing ${symbol}`);
+for (const surface of ['navigator.connection','PerformanceResourceTiming','WebTransport','RTCStatsReport','Local Network Access permission/query']) if (!networkCore.includes(surface)) fail(`network surface registry missing ${surface}`);
+
+const network = read(networkPath);
+if (!network.includes("msg?.action?.startsWith('ext:network-')")) fail('network peer action router is not wired');
+if (!network.includes("$('#allowRequests')?.checked")) fail('network peer diagnostics do not enforce single session authorization');
+for (const surface of ['navigator.connection','getStats','PerformanceObserver','local-network','loopback-network','WebTransport','WebSocket','EventSource','RTCIceTransport','RTCDtlsTransport','RTCSctpTransport','browserWithheldRadio']) if (!network.includes(surface)) fail(`network runtime missing surface: ${surface}`);
+for (const action of ['ext:network-summary','ext:network-webrtc','ext:network-timing','ext:network-permissions','ext:network-capabilities','ext:network-quality','ext:network-lna-surface']) if (!network.includes(action)) fail(`network runtime missing peer action: ${action}`);
+
+const universalTestPath='tests/universal-core.test.cjs';
+if (!exists(universalTestPath)) fail(`missing ${universalTestPath}`);
+const universalTestText = exists(universalTestPath) ? read(universalTestPath) : '';
+for (const keyword of ['gRPC-Web','MQTT','STOMP','SSE','cartesian']) if (!universalTestText.includes(keyword)) fail(`universal protocol tests missing ${keyword}`);
+
+const networkTestPath='tests/network-signal-core.test.cjs';
+if (!exists(networkTestPath)) fail(`missing ${networkTestPath}`);
+const networkTestText = exists(networkTestPath) ? read(networkTestPath) : '';
+for (const keyword of ['address classification matrix','resource timing calculations','rtc candidate pair/media summary','quality matrix','network surface registry breadth']) if (!networkTestText.includes(keyword)) fail(`network tests missing ${keyword}`);
+
 const workflow = read('.github/workflows/validate.yml');
 if (!workflow.includes('Universal protocol test matrix')) fail('CI workflow does not run universal protocol tests');
 if (!workflow.includes('node tests/universal-core.test.cjs')) fail('CI workflow missing universal-core test command');
+if (!workflow.includes('Network and signal test matrix')) fail('CI workflow does not run network/signal tests');
+if (!workflow.includes('node tests/network-signal-core.test.cjs')) fail('CI workflow missing network/signal test command');
 
 console.log(JSON.stringify({
   scripts:scripts.length,
@@ -77,8 +109,14 @@ console.log(JSON.stringify({
   universalApi:true,
   universalCore:true,
   universalV2:true,
+  networkSignal:true,
+  rtcPeerTracking:true,
+  networkSignalPeerActions:7,
+  browserWithheldRadioExplicit:true,
   importFamilies:['OpenAPI','Postman','HAR','AsyncAPI','OpenRPC','WSDL','OData','GraphQL introspection'],
   protocolFamilies:['HTTP/REST','GraphQL','JSON-RPC','SOAP','WebSocket','SSE','WebTransport','gRPC-Web','WebDAV','SPARQL','OData','GraphQL-WS','STOMP','MQTT'],
-  ciProtocolMatrix:true
+  networkFamilies:['Network Information','online/offline','Resource/Navigation Timing','DNS/TCP/TLS timing','WebRTC Stats/ICE/DTLS/SCTP','DataChannel','Local Network Access','WebSocket/SSE/WebTransport','Service Worker/background networking'],
+  ciProtocolMatrix:true,
+  ciNetworkMatrix:true
 },null,2));
 if (process.exitCode) process.exit(process.exitCode);
