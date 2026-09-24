@@ -4,7 +4,7 @@ if(globalThis.SuperApiUCOSVFS)return;
 const mounts=new Map();
 const ROOT_DIRS=['system','apps','home','tmp','devices','mounts'];
 const cleanPart=p=>String(p||'').trim();
-function normalize(path='/'){const parts=[];for(const raw of cleanPart(path).replace(/\\/g,'/').split('/')){if(!raw||raw==='.')continue;if(raw==='..'){parts.pop();continue}if(raw.includes('\0'))throw new Error('invalid-path');parts.push(raw)}return'/'+parts.join('/')}
+function normalize(path='/'){const parts=[];for(const raw of cleanPart(path).replace(/\\/g,'/').split('/')){if(!raw||raw==='.')continue;if(raw==='..'){if(!parts.length)throw new Error('path-traversal-above-root');parts.pop();continue}if(raw.includes('\0'))throw new Error('invalid-path');parts.push(raw)}return'/'+parts.join('/')}
 function split(path){return normalize(path).split('/').filter(Boolean)}
 function parent(path){const a=split(path);a.pop();return'/'+a.join('/')}
 function base(path){return split(path).at(-1)||''}
@@ -40,7 +40,8 @@ async function assertTransfer(src,dst){const s=await stat(src);if(!s)throw new E
 async function copy(src,dst){src=normalize(src);dst=normalize(dst);return withLocks([src,dst],async()=>{await assertTransfer(src,dst);return copyUnlocked(src,dst)})}
 async function move(src,dst){src=normalize(src);dst=normalize(dst);return withLocks([src,dst],async()=>{await assertTransfer(src,dst);const r=await copyUnlocked(src,dst);await removeUnlocked(src,{recursive:true});return r})}
 async function rename(src,newName){const n=String(newName??'').trim();if(!n||n==='.'||n==='..'||n.length>255||/[\\/\0]/.test(n))throw new Error('invalid-name');return move(src,normalize(`${parent(src)}/${n}`))}
-async function trash(path){path=normalize(path);if(path==='/'||split(path).length===1&&ROOT_DIRS.includes(base(path)))throw new Error('protected-path');const dest=normalize(`/home/.Trash/${Date.now()}-${base(path)}`);return move(path,dest)}
+function trashSuffix(){try{return crypto.randomUUID().replace(/-/g,'').slice(0,12)}catch{return`${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`}}
+async function trash(path){path=normalize(path);if(path==='/'||split(path).length===1&&ROOT_DIRS.includes(base(path)))throw new Error('protected-path');const dest=normalize(`/home/.Trash/${Date.now()}-${trashSuffix()}-${base(path)}`);return move(path,dest)}
 async function emptyTrash(){const p='/home/.Trash';for(const item of await list(p))await remove(item.path,{recursive:true});return true}
 async function quota(){const est=await navigator.storage?.estimate?.();return{usage:est?.usage??null,quota:est?.quota??null,usageDetails:est?.usageDetails??null,persisted:await navigator.storage?.persisted?.(),persistenceAvailable:Boolean(navigator.storage?.persist)}}
 async function requestPersistence(){if(!navigator.storage?.persist)throw new Error('persistent-storage-unavailable');return navigator.storage.persist()}
@@ -50,7 +51,7 @@ function unmount(name){return mounts.delete(sanitizeMountName(name))}
 function listMounts(){return[...mounts.entries()].map(([name,h])=>({name,path:`/mounts/${name}`,label:h.name||name,kind:'directory'}))}
 async function requestExternalMount(name){if(!globalThis.showDirectoryPicker)throw new Error('Directory picker unavailable');const h=await showDirectoryPicker({mode:'readwrite'});return mountDirectory(name||h.name,h)}
 async function init(){await ensureBase();return health()}
-function health(){return{version:6,opfs:Boolean(navigator.storage?.getDirectory),locks:Boolean(navigator.locks?.request),roots:[...ROOT_DIRS],mounts:listMounts(),descendantTransferGuard:true}}
+function health(){return{version:6,opfs:Boolean(navigator.storage?.getDirectory),locks:Boolean(navigator.locks?.request),roots:[...ROOT_DIRS],mounts:listMounts(),descendantTransferGuard:true,rootTraversalGuard:true,collisionSafeTrash:true}}
 const api=Object.freeze({normalize,split,parent,base,isSameOrDescendant,init,health,stat,exists,list,mkdir,writeBlob,writeAtomic,writeText,writeJSON,readBlob,readText,readJSON,readRange,remove,copy,move,rename,trash,emptyTrash,quota,requestPersistence,mountDirectory,requestExternalMount,unmount,listMounts,withLock});
 globalThis.SuperApiUCOSVFS=api;
 })();
