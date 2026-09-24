@@ -25,6 +25,10 @@ jobs:
         run: node tests/capability-os-core.test.cjs
       - name: UCOS fabric core matrix
         run: node tests/ucos-fabric-core.test.cjs
+      - name: UCOS runtime core matrix
+        run: node tests/ucos-runtime-core.test.cjs
+      - name: UCOS workflow core matrix
+        run: node tests/ucos-workflow-core.test.cjs
       - name: Capability OS architecture audit
         run: node .github/scripts/capability-os-audit.mjs
       - name: Universal protocol test matrix
@@ -38,7 +42,7 @@ jobs:
       - name: Repository wiring audit
         run: node .github/scripts/static-audit.mjs
       - name: Manifest JSON
-        run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8')); console.log('manifest valid')"
+        run: node -e "const m=JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8')); if(m.name!=='Super API UCOS') throw new Error('UCOS manifest identity missing'); console.log('manifest valid')"
       - name: HTML local script references
         shell: python
         run: |
@@ -73,6 +77,8 @@ jobs:
               path=item[2:] if item.startswith('./') else item
               if not Path(path).exists(): missing.append(path)
           if missing: raise SystemExit('Missing SW core assets: '+', '.join(missing))
+          for required in ['modules/ucos-runtime-core.js','modules/ucos-vfs.js','modules/ucos-workflow-core.js','modules/ucos-workflows.js','modules/ucos-runtime.js','modules/ucos-v4-integration.js','runtime/app-frame.html','runtime/app-frame.js']:
+              if './'+required not in items: raise SystemExit('UCOS v4 asset not cached: '+required)
           print('Service worker core assets valid:', len(items))
       - name: Capability OS headless browser smoke
         shell: bash
@@ -98,8 +104,9 @@ jobs:
           grep -q 'CAPABILITY_OS_BROWSER_PASS' /tmp/capability-smoke.html
           timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --virtual-time-budget=5000 --dump-dom http://127.0.0.1:8765/tests/capability-os-runtime-smoke.html >/tmp/capability-runtime-smoke.html
           grep -q 'CAPABILITY_OS_RUNTIME_PASS' /tmp/capability-runtime-smoke.html
-          timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --virtual-time-budget=5000 --dump-dom http://127.0.0.1:8765/tests/ucos-fabric-browser-smoke.html >/tmp/ucos-fabric-smoke.html
+          timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --virtual-time-budget=7000 --dump-dom http://127.0.0.1:8765/tests/ucos-fabric-browser-smoke.html >/tmp/ucos-fabric-smoke.html
           grep -q 'UCOS_FABRIC_BROWSER_PASS' /tmp/ucos-fabric-smoke.html
+          grep -q 'UCOS_V4_BROWSER_PASS' /tmp/ucos-fabric-smoke.html
           echo 'Running the actual production index through CDP responsiveness checks...'
           CHROME_PROFILE="$(mktemp -d)"
           "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir="$CHROME_PROFILE" about:blank >/tmp/production-chrome.out 2>/tmp/production-chrome.err &
