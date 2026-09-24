@@ -1,5 +1,5 @@
-const CACHE='super-api-peer-lab-v13';
-const CORE=['./','./index.html','./app.js','./catalog.js','./peer-hook.js','./session-consent.js','./api-extensions.js','./deep-api-tests.js','./session-bootstrap.js','./runtime-surface.js','./emerging-apis.js','./realm-scanners.js','./mdn-live-index.js','./interface-harness.js','./latest-platform.js','./modules/realm-rpc.js','./modules/universal-api.js','./workers/realm-rpc-sw.js','./manifest.webmanifest','./icon.svg'];
+const CACHE='super-api-peer-lab-v14';
+const CORE=['./','./index.html','./app.js','./catalog.js','./peer-hook.js','./session-consent.js','./api-extensions.js','./deep-api-tests.js','./session-bootstrap.js','./runtime-surface.js','./emerging-apis.js','./realm-scanners.js','./mdn-live-index.js','./interface-harness.js','./latest-platform.js','./modules/realm-rpc.js','./modules/universal-core.js','./modules/universal-api.js','./modules/universal-api-v2.js','./workers/realm-rpc-sw.js','./manifest.webmanifest','./icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).catch(()=>{}));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil((async()=>{for(const k of await caches.keys())if(k.startsWith('super-api-peer-lab-')&&k!==CACHE)await caches.delete(k);await self.clients.claim();})());});
 self.addEventListener('fetch',event=>{
