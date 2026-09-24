@@ -78,7 +78,14 @@ jobs:
           set -euo pipefail
           python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/super-api-http.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          CHROME_PID=''
+          CHROME_PROFILE=''
+          cleanup(){
+            if [ -n "$CHROME_PID" ]; then kill "$CHROME_PID" 2>/dev/null || true; fi
+            kill "$SERVER_PID" 2>/dev/null || true
+            if [ -n "$CHROME_PROFILE" ]; then rm -rf "$CHROME_PROFILE" 2>/dev/null || true; fi
+          }
+          trap cleanup EXIT
           for i in {1..20}; do
             if curl -fsS http://127.0.0.1:8765/ >/dev/null; then break; fi
             sleep 0.5
@@ -89,23 +96,9 @@ jobs:
           grep -q 'CAPABILITY_OS_BROWSER_PASS' /tmp/capability-smoke.html
           timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --virtual-time-budget=5000 --dump-dom http://127.0.0.1:8765/tests/capability-os-runtime-smoke.html >/tmp/capability-runtime-smoke.html
           grep -q 'CAPABILITY_OS_RUNTIME_PASS' /tmp/capability-runtime-smoke.html
-          echo 'Running the actual production index through Chromium...'
-          set +e
-          timeout 35s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --enable-logging=stderr --virtual-time-budget=8000 --dump-dom http://127.0.0.1:8765/index.html >/tmp/production-index-dom.html 2>/tmp/production-index-browser.log
-          PROD_EXIT=$?
-          set -e
-          if [ "$PROD_EXIT" -ne 0 ]; then
-            echo 'Production index failed or hung. Browser log:' >&2
-            tail -200 /tmp/production-index-browser.log >&2 || true
-            exit "$PROD_EXIT"
-          fi
-          grep -q 'id="allowRequests"' /tmp/production-index-dom.html
-          grep -q 'id="sessionBootstrapPanel"' /tmp/production-index-dom.html
-          grep -q 'id="runtimeSurfacePanel"' /tmp/production-index-dom.html
-          grep -q 'id="capabilityOsPanel"' /tmp/production-index-dom.html
-          if grep -Eiq 'Uncaught|SyntaxError|ReferenceError|TypeError:' /tmp/production-index-browser.log; then
-            echo 'Production index emitted a JavaScript error:' >&2
-            grep -Ei 'Uncaught|SyntaxError|ReferenceError|TypeError:' /tmp/production-index-browser.log >&2 || true
-            exit 1
-          fi
-          echo 'Actual production index opened and initialized successfully'
+          echo 'Running the actual production index through CDP responsiveness checks...'
+          CHROME_PROFILE="$(mktemp -d)"
+          "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --user-data-dir="$CHROME_PROFILE" about:blank >/tmp/production-chrome.out 2>/tmp/production-chrome.err &
+          CHROME_PID=$!
+          node tests/production-browser-smoke.mjs http://127.0.0.1:8765/index.html 9222
+          echo 'Actual production index loaded, initialized, and responded on its main thread'
