@@ -104,6 +104,13 @@
     loadModule('./modules/network-signal.js', 'data-super-api-network-signal');
   });
 
+  // Wireless/radio stack. It inventories every major radio family, runs the
+  // browser-exposed surfaces, and labels non-exposed/raw-radio technologies
+  // explicitly instead of pretending the browser can access them.
+  loadModule('./modules/wireless-radio-core.js', 'data-super-api-wireless-core', () => {
+    loadModule('./modules/wireless-radio.js', 'data-super-api-wireless-radio');
+  });
+
   // External/world API stack must load in dependency order.
   loadModule('./modules/universal-core.js', 'data-super-api-universal-core', () => {
     loadModule('./modules/universal-api.js', 'data-super-api-universal-api', () => {
