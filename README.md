@@ -6,10 +6,12 @@ A GitHub-Pages-ready browser Web API capability lab with WebRTC peer control.
 
 The catalog is aligned to the MDN **Web APIs → Specifications** index checked on 24 September 2026. It contains 148 specification-level Web API entries and feature-detects each entry in the current browser.
 
-The project now uses two execution layers:
+The project now uses four execution layers:
 
 1. `app.js` — the primary runnable API test set and WebRTC peer console.
-2. `api-extensions.js` — completes previously detection-only APIs, provides live/configurable endpoint tests where a server counterpart is required, and adds supplemental practical browser calls such as OPFS, Cache Storage, SharedWorker and MediaDevices enumeration.
+2. `api-extensions.js` — completes previously detection-only APIs and provides live/configurable endpoint tests where a server counterpart is required.
+3. `deep-api-tests.js` — exercises deeper API paths such as WebGPU device submission, inline WebXR sessions, WebAuthn credential creation, redacted WebOTP/FedCM flows, file/directory reads, Bluetooth/USB/HID connection/open tests, MediaSource lifecycle, WebCodecs frame creation, Periodic Sync registration, Push subscription, Presentation start, Remote Playback prompting, screen-orientation locking and service-worker messaging.
+4. `session-bootstrap.js` — runs the one-click reusable-permission bootstrap and audits catalog coverage in the rendered page.
 
 The extension layer includes calls for Background Fetch, CSS Painting, Content Index, Encrypted Media Extensions/ClearKey, Fenced Frames, File and Directory Entries, Force Touch, Houdini, Invoker Commands, JS Self-Profiling, Launch Handler, Presentation, Private State Token surface construction, Push subscription state, Remote Playback, Server-Sent Events, Shared Storage, Topics, Text Fragments, Viewport Segments, Periodic Background Sync, Payment Handler state, legacy WebVR, WebSocket and WebTransport.
 
@@ -26,7 +28,7 @@ Open the same page on two devices:
 
 The peers communicate through a WebRTC DataChannel. Camera, microphone and screen tracks can also be sent over the paired WebRTC connection when the browser allows the requested capability.
 
-`peer-hook.js` extends the same WebRTC channel so the additional `ext:*` actions use the existing pairing rather than requiring a second connection.
+`peer-hook.js` extends the same WebRTC channel so the additional `ext:*` and `ext:deep-*` actions use the existing pairing rather than requiring a second connection.
 
 ### Pairing
 
@@ -46,12 +48,19 @@ There is one application-level authorization for the whole page session.
 
 After it is enabled:
 
-- all implemented primary and extension peer actions are forwarded without another app-level approval;
+- all implemented primary, extension and deep peer actions are forwarded without another app-level approval;
+- `session-bootstrap.js` immediately attempts reusable browser permissions that can be requested from that one trusted user gesture, including camera/microphone, geolocation, notifications, orientation/idle permission where exposed, persistent storage and a permission-state snapshot;
 - the authorization resets on reload or when the page switches to Controller mode;
 - the controlled page displays **session control ON**;
 - API errors are returned to the controller instead of being reported as fake successes.
 
 This does **not** override the browser or operating system. Web-platform APIs may independently require a native permission prompt, device picker, or transient local user activation. Examples include screen capture, file/device pickers, Bluetooth, USB, HID, Serial, contacts and some clipboard/sensor operations. A normal webpage cannot merge those browser-enforced permissions into a single JavaScript permission.
+
+The **Session permission bootstrap + coverage audit** panel shows which reusable permissions are ready and which capabilities remain browser-chooser/fresh-activation bound. It also audits how many catalog entries currently have an executable UI path.
+
+## Sensitive credential handling
+
+Deep tests deliberately redact security-sensitive values before returning peer results. WebOTP codes, FedCM tokens, Push subscription endpoints/keys and WebAuthn credential identifiers are not returned to the controller.
 
 ## GitHub Pages
 
@@ -73,7 +82,9 @@ HTTPS is required by many powerful Web APIs.
 - `app.js` — primary runnable API tests and peer transport
 - `session-consent.js` — single page-session authorization layer
 - `api-extensions.js` — additional API calls, endpoint-backed tests and supplemental capabilities
-- `sw.js` — offline shell/background test service worker
+- `deep-api-tests.js` — deeper end-to-end exercise paths for powerful/specialized APIs
+- `session-bootstrap.js` — one-click reusable-permission bootstrap and coverage audit
+- `sw.js` — offline shell, background test service worker and message round-trip endpoint
 - `manifest.webmanifest` — PWA metadata
 - `icon.svg` — PWA icon
 - `API_COVERAGE.md` — catalog snapshot
