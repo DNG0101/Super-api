@@ -3,7 +3,7 @@
 <body>
 <button id="hostBtn" class="primary">host</button><button id="controllerBtn">controller</button><input id="allowRequests" type="checkbox" checked>
 <select id="remoteAction"><option value="environment-info">Environment</option><option value="ext:test">Extension test</option></select>
-<main><section id="legacyLab">legacy lab preserved</section></main><pre id="result">running</pre>
+<main><section id="legacyLab">legacy lab preserved</section></main><div id="sandboxMount"></div><pre id="result">running</pre>
 <script src="../modules/capability-os-core.js"></script>
 <script>
 window.__superApiTrackedChannels=new Set();
@@ -56,8 +56,7 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   window.__superApiTrackedChannels.add(a);window.__superApiTrackedChannels.add(b);
   a.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:hello',node:{id:'peer-a',label:'Peer A',kind:'browser',online:true}})}));
   b.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:hello',node:{id:'peer-b',label:'Peer B',kind:'browser',online:true}})}));
-  a.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:advertise',node:{id:'peer-a',label:'Peer A',kind:'browser',online:true,capabilities:['action:ext:test'],capabilityDetails:[{id:'action:ext:test',domain:'diagnostics',operations:['execute']} ]}})}));
-  b.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:advertise',node:{id:'peer-b',label:'Peer B',kind:'browser',online:true,capabilities:['action:ext:test'],capabilityDetails:[{id:'action:ext:test',domain:'diagnostics',operations:['execute']} ]}})}));
+  for(const [ch,id,label] of [[a,'peer-a','Peer A'],[b,'peer-b','Peer B']])ch.dispatchEvent(new MessageEvent('message',{data:JSON.stringify({type:'ucos:advertise',node:{id,label,kind:'browser',online:true,capabilities:['action:ext:test'],capabilityDetails:[{id:'action:ext:test',domain:'diagnostics',operations:['execute']}]}})}));
   if(SuperApiUCOS.channelForNode('peer-a')!==a||SuperApiUCOS.channelForNode('peer-b')!==b)throw new Error('peer-specific channel mapping failed');
   const remote=await SuperApiUCOS.execute({capabilityId:'action:ext:test',operation:'execute',mode:'peer',targetNodeId:'peer-a'});
   if(remote.result?.servedBy!=='peer-a-channel')throw new Error('targetNodeId was not routed to the requested peer');
@@ -72,8 +71,21 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   await SuperApiUCOSVFS.move('/tmp/smoke-copy.txt','/home/moved.txt');
   if(!(await SuperApiUCOSVFS.stat('/home/moved.txt')))throw new Error('VFS move failed');
   await SuperApiUCOSVFS.remove('/home/smoke.txt');await SuperApiUCOSVFS.remove('/home/moved.txt');
+
   const flow={id:'browser-smoke',steps:[{id:'a',type:'set',key:'ok',value:true},{id:'b',type:'condition',dependsOn:['a'],left:'${vars.ok}',operator:'eq',right:true}]};
   const run=await SuperApiUCOSWorkflows.run(flow,{});if(run.state!=='success')throw new Error('workflow execution failed');
+
+  await SuperApiUCOSRuntime.installManifest({id:'sandbox.test',name:'Sandbox Test',runtime:'sandbox',entry:'tests/fixtures/ucos-sandbox-app.js',capabilities:['action:environment-info','system.vfs','system.workflow']});
+  await SuperApiUCOSRuntime.grants.set('sandbox.test','action:environment-info',{state:'granted',scope:'once'});
+  const mount=document.querySelector('#sandboxMount');
+  let handle;await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('sandbox app did not become ready')),5000);handle=SuperApiUCOSRuntime.attachSandbox('sandbox.test',mount,{onReady:()=>{clearTimeout(timer);resolve()},onCrash:m=>{clearTimeout(timer);reject(new Error(m.error||'sandbox crashed'))}})});
+  if(await SuperApiUCOSVFS.readText('/apps/data/sandbox.test/note.txt')!=='sandbox-ok')throw new Error('sandbox private VFS IPC failed');
+  if((await SuperApiUCOSRuntime.grants.check('sandbox.test','action:environment-info')).state!=='prompt')throw new Error('once capability grant was not consumed');
+  if(!SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid&&p.state==='running'))throw new Error('sandbox process manager state missing');
+  await handle.close();await new Promise(r=>setTimeout(r,0));
+  if(SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid))throw new Error('sandbox process/resource cleanup failed');
+  await SuperApiUCOSVFS.remove('/apps/data/sandbox.test',{recursive:true});await SuperApiUCOSRuntime.uninstall('sandbox.test');
+
   document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS UCOS_V4_BROWSER_PASS';
  }catch(error){document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_FAIL '+error.message;throw error}
 })();
