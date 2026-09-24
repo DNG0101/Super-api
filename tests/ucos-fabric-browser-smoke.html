@@ -20,11 +20,21 @@ window.SUPER_API_EXT_HANDLE=()=>{};
 <script src="../modules/ucos-fabric-core.js"></script>
 <script src="../modules/ucos-storage.js"></script>
 <script src="../modules/ucos-fabric.js"></script>
+<script src="../modules/ucos-runtime-core.js"></script>
+<script src="../modules/ucos-vfs.js"></script>
+<script src="../modules/ucos-workflow-core.js"></script>
+<script src="../modules/ucos-workflows.js"></script>
+<script src="../modules/ucos-runtime.js"></script>
 <script src="../modules/ucos-shell.js"></script>
+<script src="../modules/ucos-v4-integration.js"></script>
 <script>
 (async()=>{
  try{
   if(!window.SuperApiUCOS)throw new Error('SuperApiUCOS missing');
+  if(!window.SuperApiUCOSRuntime)throw new Error('UCOS runtime missing');
+  if(!window.SuperApiUCOSVFS)throw new Error('UCOS VFS missing');
+  if(!window.SuperApiUCOSWorkflows)throw new Error('UCOS workflows missing');
+  if(!window.SuperApiUCOSV4)throw new Error('UCOS v4 integration missing');
   if(!document.querySelector('#ucosOS'))throw new Error('UCOS full-screen shell missing');
   if(!document.body.classList.contains('ucos-os-active'))throw new Error('UCOS shell did not become primary viewport');
   if(!document.querySelector('#ucosDesktop'))throw new Error('UCOS desktop missing');
@@ -37,7 +47,17 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   if(h.transports.length<2)throw new Error('transports missing');
   const env=await SuperApiUCOS.execute({capabilityId:'action:environment-info',operation:'execute',mode:'local'});
   if(!env.ok||!env.result)throw new Error('local provider execution failed');
-  document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS';
+  await SuperApiUCOSRuntime.ready;
+  if(SuperApiUCOSRuntime.manifests.size()<10)throw new Error('system app manifests not registered');
+  await SuperApiUCOSVFS.init();
+  await SuperApiUCOSVFS.writeText('/home/smoke.txt','ucos-v4');
+  if(await SuperApiUCOSVFS.readText('/home/smoke.txt')!=='ucos-v4')throw new Error('VFS read/write failed');
+  await SuperApiUCOSVFS.copy('/home/smoke.txt','/tmp/smoke-copy.txt');
+  if(!(await SuperApiUCOSVFS.stat('/tmp/smoke-copy.txt')))throw new Error('VFS copy failed');
+  await SuperApiUCOSVFS.remove('/home/smoke.txt');await SuperApiUCOSVFS.remove('/tmp/smoke-copy.txt');
+  const flow={id:'browser-smoke',steps:[{id:'a',type:'set',key:'ok',value:true},{id:'b',type:'condition',dependsOn:['a'],left:'${vars.ok}',operator:'eq',right:true}]};
+  const run=await SuperApiUCOSWorkflows.run(flow,{});if(run.state!=='success')throw new Error('workflow execution failed');
+  document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS UCOS_V4_BROWSER_PASS';
  }catch(error){document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_FAIL '+error.message;throw error}
 })();
 </script>
