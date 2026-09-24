@@ -46,10 +46,11 @@ function createResourceManager(){
 }
 function createProcessManager(resources){
   const map=new Map(),history=[];const MAX_HISTORY=200;
+  const TRANSITIONS=Object.freeze({starting:new Set(['starting','running','suspended','crashed']),running:new Set(['running','suspended','crashed']),suspended:new Set(['suspended','running','crashed']),crashed:new Set(['crashed'])});
   function snapshot(row){return clone(row||null)}
   function archive(row,reason){history.unshift({...clone(row),endedAt:Date.now(),endReason:text(reason)});if(history.length>MAX_HISTORY)history.length=MAX_HISTORY}
   function spawn(appId,{runtime='system',metadata={},state='running'}={}){const initial=['starting','running','suspended'].includes(state)?state:'running',now=Date.now(),pid=id('proc'),row={pid,appId:text(appId),runtime:text(runtime),state:initial,startedAt:now,updatedAt:now,heartbeatAt:now,suspendedAt:initial==='suspended'?now:null,restartCount:0,metadata:clone(metadata),error:null};map.set(pid,row);return snapshot(row)}
-  function setState(pid,state,error=null){const row=map.get(pid);if(!row)return null;row.state=text(state);row.updatedAt=Date.now();row.error=error?text(error):null;if(state==='suspended')row.suspendedAt=Date.now();if(state==='running'||state==='starting')row.suspendedAt=null;return snapshot(row)}
+  function setState(pid,state,error=null){const row=map.get(pid),next=text(state);if(!row||!TRANSITIONS[row.state]?.has(next))return null;row.state=next;row.updatedAt=Date.now();row.error=error?text(error):null;if(next==='suspended')row.suspendedAt=Date.now();if(next==='running'||next==='starting')row.suspendedAt=null;return snapshot(row)}
   function heartbeat(pid,metadata=null){const row=map.get(pid);if(!row)return null;row.heartbeatAt=Date.now();row.updatedAt=row.heartbeatAt;if(metadata)row.metadata={...row.metadata,...clone(metadata)};return snapshot(row)}
   function suspend(pid,reason='suspended'){const row=map.get(pid);if(!row||!['running','starting'].includes(row.state))return null;return setState(pid,'suspended',reason)}
   function resume(pid){const row=map.get(pid);if(!row||row.state!=='suspended')return null;return setState(pid,'running',null)}
