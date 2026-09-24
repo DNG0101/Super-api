@@ -89,9 +89,23 @@ jobs:
           grep -q 'CAPABILITY_OS_BROWSER_PASS' /tmp/capability-smoke.html
           timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --virtual-time-budget=5000 --dump-dom http://127.0.0.1:8765/tests/capability-os-runtime-smoke.html >/tmp/capability-runtime-smoke.html
           grep -q 'CAPABILITY_OS_RUNTIME_PASS' /tmp/capability-runtime-smoke.html
-          curl -fsS http://127.0.0.1:8765/index.html >/tmp/super-api-index.html
-          grep -q 'id="allowRequests"' /tmp/super-api-index.html
-          grep -q 'session-consent.js' /tmp/super-api-index.html
-          grep -q "modules/capability-os-core.js" session-consent.js
-          grep -q "modules/capability-os.js" session-consent.js
-          echo 'Capability OS browser and runtime smoke passed'
+          echo 'Running the actual production index through Chromium...'
+          set +e
+          timeout 35s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --enable-logging=stderr --virtual-time-budget=8000 --dump-dom http://127.0.0.1:8765/index.html >/tmp/production-index-dom.html 2>/tmp/production-index-browser.log
+          PROD_EXIT=$?
+          set -e
+          if [ "$PROD_EXIT" -ne 0 ]; then
+            echo 'Production index failed or hung. Browser log:' >&2
+            tail -200 /tmp/production-index-browser.log >&2 || true
+            exit "$PROD_EXIT"
+          fi
+          grep -q 'id="allowRequests"' /tmp/production-index-dom.html
+          grep -q 'id="sessionBootstrapPanel"' /tmp/production-index-dom.html
+          grep -q 'id="runtimeSurfacePanel"' /tmp/production-index-dom.html
+          grep -q 'id="capabilityOsPanel"' /tmp/production-index-dom.html
+          if grep -Eiq 'Uncaught|SyntaxError|ReferenceError|TypeError:' /tmp/production-index-browser.log; then
+            echo 'Production index emitted a JavaScript error:' >&2
+            grep -Ei 'Uncaught|SyntaxError|ReferenceError|TypeError:' /tmp/production-index-browser.log >&2 || true
+            exit 1
+          fi
+          echo 'Actual production index opened and initialized successfully'
