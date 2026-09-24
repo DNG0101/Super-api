@@ -1,5 +1,5 @@
-const CACHE='super-api-peer-lab-v6';
-const CORE=['./','./index.html','./app.js','./catalog.js','./peer-hook.js','./session-consent.js','./api-extensions.js','./session-bootstrap.js','./manifest.webmanifest','./icon.svg'];
+const CACHE='super-api-peer-lab-v7';
+const CORE=['./','./index.html','./app.js','./catalog.js','./peer-hook.js','./session-consent.js','./api-extensions.js','./deep-api-tests.js','./session-bootstrap.js','./manifest.webmanifest','./icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).catch(()=>{}));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil((async()=>{for(const k of await caches.keys())if(k.startsWith('super-api-peer-lab-')&&k!==CACHE)await caches.delete(k);await self.clients.claim();})());});
 self.addEventListener('fetch',event=>{
@@ -11,4 +11,5 @@ self.addEventListener('fetch',event=>{
   event.respondWith(caches.match(req).then(cached=>{const network=fetch(req).then(r=>{if(r.ok)caches.open(CACHE).then(c=>c.put(req,r.clone()));return r;}).catch(()=>cached);return cached||network;}));
 });
 self.addEventListener('sync',event=>{if(event.tag==='super-api-sync')event.waitUntil(Promise.resolve());});
+self.addEventListener('message',event=>{if(event.data?.type==='super-api-ping'){const port=event.ports?.[0];port?.postMessage({type:'super-api-pong',received:event.data.time,responded:Date.now()});}});
 self.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(ws=>ws[0]?.focus()||clients.openWindow('./')));});
