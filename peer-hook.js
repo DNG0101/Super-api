@@ -5,6 +5,7 @@
   if (!NativePC) return;
   window.__superApiPeerHookInstalled = true;
   window.__superApiTrackedChannels = window.__superApiTrackedChannels || new Set();
+  window.__superApiTrackedPeers = window.__superApiTrackedPeers || new Set();
 
   function safeSend(ch, payload) {
     try {
@@ -22,8 +23,6 @@
       try { msg = JSON.parse(event.data); } catch { return; }
       if (!msg || msg.type !== 'request' || typeof msg.action !== 'string' || !msg.action.startsWith('ext:')) return;
 
-      // Extension actions are handled here before app.js sees them, avoiding
-      // app.js's "Unknown action" response for actions added by api-extensions.js.
       event.stopImmediatePropagation();
       const handler = window.SUPER_API_EXT_HANDLE;
       if (typeof handler !== 'function') {
@@ -40,12 +39,23 @@
   }
 
   function trackPeer(pc) {
-    if (!pc || pc.__superApiPeerTracked) return pc;
+    if (!pc) return pc;
+    if (pc.__superApiPeerTracked) {
+      window.__superApiTrackedPeers.add(pc);
+      return pc;
+    }
     Object.defineProperty(pc, '__superApiPeerTracked', { value:true, configurable:true });
+    window.__superApiTrackedPeers.add(pc);
 
     const nativeCreate = pc.createDataChannel.bind(pc);
     pc.createDataChannel = (...args) => trackChannel(nativeCreate(...args));
     pc.addEventListener('datachannel', e => trackChannel(e.channel), true);
+    pc.addEventListener('connectionstatechange', () => {
+      if (pc.connectionState === 'closed') window.__superApiTrackedPeers.delete(pc);
+    });
+    pc.addEventListener('iceconnectionstatechange', () => {
+      if (pc.iceConnectionState === 'closed') window.__superApiTrackedPeers.delete(pc);
+    });
     return pc;
   }
 
@@ -58,4 +68,5 @@
   try { window.RTCPeerConnection = WrappedPC; } catch {}
   try { if (window.webkitRTCPeerConnection) window.webkitRTCPeerConnection = WrappedPC; } catch {}
   window.__superApiTrackChannel = trackChannel;
+  window.__superApiTrackPeer = trackPeer;
 })();
