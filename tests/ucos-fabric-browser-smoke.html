@@ -20,6 +20,10 @@ window.SUPER_API_EXT_HANDLE=()=>{};
 <script src="../modules/ucos-fabric-core.js"></script>
 <script src="../modules/ucos-storage.js"></script>
 <script src="../modules/ucos-fabric.js"></script>
+<script src="../modules/ucos-lifecycle.js"></script>
+<script src="../modules/ucos-security-core.js"></script>
+<script src="../modules/ucos-security.js"></script>
+<script src="../modules/ucos-secure-peer.js"></script>
 <script src="../modules/ucos-runtime-core.js"></script>
 <script src="../modules/ucos-vfs.js"></script>
 <script src="../modules/ucos-workflow-core.js"></script>
@@ -27,6 +31,8 @@ window.SUPER_API_EXT_HANDLE=()=>{};
 <script src="../modules/ucos-runtime.js"></script>
 <script src="../modules/ucos-shell.js"></script>
 <script src="../modules/ucos-v4-integration.js"></script>
+<script src="../modules/ucos-update.js"></script>
+<script src="../modules/ucos-v5-integration.js"></script>
 <script>
 (async()=>{
  try{
@@ -35,6 +41,10 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   if(!window.SuperApiUCOSVFS)throw new Error('UCOS VFS missing');
   if(!window.SuperApiUCOSWorkflows)throw new Error('UCOS workflows missing');
   if(!window.SuperApiUCOSV4)throw new Error('UCOS v4 integration missing');
+  if(!window.SuperApiUCOSSecurity)throw new Error('UCOS security missing');
+  if(!window.SuperApiUCOSSecurePeer)throw new Error('UCOS secure peer missing');
+  if(!window.SuperApiUCOSLifecycle)throw new Error('UCOS lifecycle missing');
+  if(!window.SuperApiUCOSV5)throw new Error('UCOS v5 integration missing');
   if(!document.querySelector('#ucosOS'))throw new Error('UCOS full-screen shell missing');
   if(!document.body.classList.contains('ucos-os-active'))throw new Error('UCOS shell did not become primary viewport');
   if(!document.querySelector('#ucosDesktop'))throw new Error('UCOS desktop missing');
@@ -44,7 +54,8 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   const h=SuperApiUCOS.health();
   if(h.capabilities.total<2)throw new Error('capabilities not mirrored');
   if(h.providers.length<2)throw new Error('providers missing');
-  if(h.transports.length<2)throw new Error('transports missing');
+  if(h.transports.length<3)throw new Error('secure transport missing');
+  const ident=await SuperApiUCOSSecurity.ready;if(!ident?.deviceId?.startsWith('dev-'))throw new Error('cryptographic device identity missing');
   const env=await SuperApiUCOS.execute({capabilityId:'action:environment-info',operation:'execute',mode:'local'});
   if(!env.ok||!env.result)throw new Error('local provider execution failed');
 
@@ -64,29 +75,33 @@ window.SUPER_API_EXT_HANDLE=()=>{};
   await SuperApiUCOSRuntime.ready;
   if(SuperApiUCOSRuntime.manifests.size()<10)throw new Error('system app manifests not registered');
   await SuperApiUCOSVFS.init();
-  await SuperApiUCOSVFS.writeText('/home/smoke.txt','ucos-v4');
-  if(await SuperApiUCOSVFS.readText('/home/smoke.txt')!=='ucos-v4')throw new Error('VFS read/write failed');
-  await SuperApiUCOSVFS.copy('/home/smoke.txt','/tmp/smoke-copy.txt');
-  if(!(await SuperApiUCOSVFS.stat('/tmp/smoke-copy.txt')))throw new Error('VFS copy failed');
-  await SuperApiUCOSVFS.move('/tmp/smoke-copy.txt','/home/moved.txt');
-  if(!(await SuperApiUCOSVFS.stat('/home/moved.txt')))throw new Error('VFS move failed');
-  await SuperApiUCOSVFS.remove('/home/smoke.txt');await SuperApiUCOSVFS.remove('/home/moved.txt');
+  await SuperApiUCOSVFS.writeAtomic('/home/smoke.txt','ucos-v5',{type:'text/plain'});
+  if(await SuperApiUCOSVFS.readText('/home/smoke.txt')!=='ucos-v5')throw new Error('VFS atomic read/write failed');
+  await SuperApiUCOSVFS.writeJSON('/home/data.json',{ok:true});if((await SuperApiUCOSVFS.readJSON('/home/data.json')).ok!==true)throw new Error('VFS JSON helpers failed');
+  const range=await SuperApiUCOSVFS.readRange('/home/smoke.txt',0,4);if(await range.text()!=='ucos')throw new Error('VFS range read failed');
+  await SuperApiUCOSVFS.copy('/home/smoke.txt','/tmp/smoke-copy.txt');if(!(await SuperApiUCOSVFS.stat('/tmp/smoke-copy.txt')))throw new Error('VFS copy failed');
+  await SuperApiUCOSVFS.move('/tmp/smoke-copy.txt','/home/moved.txt');if(!(await SuperApiUCOSVFS.stat('/home/moved.txt')))throw new Error('VFS move failed');
+  const trashed=await SuperApiUCOSVFS.trash('/home/moved.txt');if(!trashed?.path?.includes('/home/.Trash/'))throw new Error('VFS trash failed');await SuperApiUCOSVFS.emptyTrash();
+  await SuperApiUCOSVFS.remove('/home/smoke.txt');await SuperApiUCOSVFS.remove('/home/data.json');
 
   const flow={id:'browser-smoke',steps:[{id:'a',type:'set',key:'ok',value:true},{id:'b',type:'condition',dependsOn:['a'],left:'${vars.ok}',operator:'eq',right:true}]};
   const run=await SuperApiUCOSWorkflows.run(flow,{});if(run.state!=='success')throw new Error('workflow execution failed');
 
-  await SuperApiUCOSRuntime.installManifest({id:'sandbox.test',name:'Sandbox Test',runtime:'sandbox',entry:'tests/fixtures/ucos-sandbox-app.js',capabilities:['action:environment-info','system.vfs','system.workflow']});
+  await SuperApiUCOSRuntime.installManifest({id:'sandbox.test',name:'Sandbox Test',version:'1.0.0',runtime:'sandbox',entry:'tests/fixtures/ucos-sandbox-app.js',capabilities:['action:environment-info','system.vfs','system.workflow']});
   await SuperApiUCOSRuntime.grants.set('sandbox.test','action:environment-info',{state:'granted',scope:'once'});
   const mount=document.querySelector('#sandboxMount');
-  let handle;await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('sandbox app did not become ready')),5000);handle=SuperApiUCOSRuntime.attachSandbox('sandbox.test',mount,{onReady:()=>{clearTimeout(timer);resolve()},onCrash:m=>{clearTimeout(timer);reject(new Error(m.error||'sandbox crashed'))}})});
+  let handle;await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('sandbox app did not become ready')),7000);handle=SuperApiUCOSRuntime.attachSandbox('sandbox.test',mount,{onReady:()=>{clearTimeout(timer);resolve()},onCrash:m=>{clearTimeout(timer);reject(new Error(m.error||'sandbox crashed'))}})});
   if(await SuperApiUCOSVFS.readText('/apps/data/sandbox.test/note.txt')!=='sandbox-ok')throw new Error('sandbox private VFS IPC failed');
   if((await SuperApiUCOSRuntime.grants.check('sandbox.test','action:environment-info')).state!=='prompt')throw new Error('once capability grant was not consumed');
   if(!SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid&&p.state==='running'))throw new Error('sandbox process manager state missing');
-  await handle.close();await new Promise(r=>setTimeout(r,0));
-  if(SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid))throw new Error('sandbox process/resource cleanup failed');
+  handle.suspend('smoke');if(!SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid&&p.state==='suspended'))throw new Error('sandbox suspend failed');handle.resume();if(!SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid&&p.state==='running'))throw new Error('sandbox resume failed');
+  if(!SuperApiUCOSSecurity.audit.query({type:'capability-executed',appId:'sandbox.test'}).length)throw new Error('security audit did not record sandbox capability');
+  await handle.close();await new Promise(r=>setTimeout(r,0));if(SuperApiUCOSRuntime.listProcesses().some(p=>p.pid===handle.pid))throw new Error('sandbox process/resource cleanup failed');
   await SuperApiUCOSVFS.remove('/apps/data/sandbox.test',{recursive:true});await SuperApiUCOSRuntime.uninstall('sandbox.test');
 
-  document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS UCOS_V4_BROWSER_PASS';
+  await SuperApiUCOSV5.ready;if(SuperApiUCOSLifecycle.health().ready!==true)throw new Error('lifecycle did not mark boot ready');
+  const v5h=await SuperApiUCOSV5.health();if(v5h.version!==5||v5h.runtime.version!==5)throw new Error('UCOS v5 health contract missing');
+  document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_PASS UCOS_V4_BROWSER_PASS UCOS_V5_BROWSER_PASS';
  }catch(error){document.querySelector('#result').textContent='UCOS_FABRIC_BROWSER_FAIL '+error.message;throw error}
 })();
 </script>
