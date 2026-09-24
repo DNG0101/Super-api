@@ -23,6 +23,8 @@ jobs:
           find . -type f -name '*.js' -not -path './.git/*' -print0 | sort -z | xargs -0 -n1 node --check
       - name: Universal protocol test matrix
         run: node tests/universal-core.test.cjs
+      - name: Network and signal test matrix
+        run: node tests/network-signal-core.test.cjs
       - name: Repository wiring audit
         run: node .github/scripts/static-audit.mjs
       - name: Manifest JSON
