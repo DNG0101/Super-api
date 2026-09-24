@@ -25,6 +25,8 @@ jobs:
         run: node tests/universal-core.test.cjs
       - name: Network and signal test matrix
         run: node tests/network-signal-core.test.cjs
+      - name: Wireless radio test matrix
+        run: node tests/wireless-radio-core.test.cjs
       - name: Repository wiring audit
         run: node .github/scripts/static-audit.mjs
       - name: Manifest JSON
