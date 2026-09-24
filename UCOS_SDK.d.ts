@@ -1,6 +1,6 @@
 export type UCOSMode='auto'|'local'|'peer'|'remote';
-export interface UCOSManifest{id:string;name:string;version:string;capabilities:string[];runtime:'sandbox'|'system';entry:string;}
-export interface CapabilityOptions{operation?:string;args?:unknown;mode?:UCOSMode;targetNodeId?:string;signal?:AbortSignal|null;timeoutMs?:number;}
+export interface UCOSManifest{id:string;name:string;version:string;capabilities:string[];runtime:'sandbox'|'system';entry:string;singleton?:boolean;lifecycle?:{suspendable?:boolean;restore?:boolean;autoRestart?:boolean};}
+export interface CapabilityOptions{operation?:string;args?:unknown;mode?:UCOSMode;targetNodeId?:string;resourceScope?:string;signal?:AbortSignal|null;timeoutMs?:number;}
 export interface VFSStat{path:string;name:string;kind:'file'|'directory';size?:number;type?:string;}
 export interface WorkflowRunOptions{signal?:AbortSignal|null;timeoutMs?:number;}
 export interface UCOSSDK{
