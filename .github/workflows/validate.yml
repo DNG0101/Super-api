@@ -87,9 +87,11 @@ jobs:
           if [ -z "$CHROME" ]; then echo 'No Chromium-compatible browser on runner' >&2; exit 1; fi
           timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --virtual-time-budget=3000 --dump-dom http://127.0.0.1:8765/tests/capability-os-browser-smoke.html >/tmp/capability-smoke.html
           grep -q 'CAPABILITY_OS_BROWSER_PASS' /tmp/capability-smoke.html
+          timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --virtual-time-budget=5000 --dump-dom http://127.0.0.1:8765/tests/capability-os-runtime-smoke.html >/tmp/capability-runtime-smoke.html
+          grep -q 'CAPABILITY_OS_RUNTIME_PASS' /tmp/capability-runtime-smoke.html
           curl -fsS http://127.0.0.1:8765/index.html >/tmp/super-api-index.html
           grep -q 'id="allowRequests"' /tmp/super-api-index.html
           grep -q 'session-consent.js' /tmp/super-api-index.html
           grep -q "modules/capability-os-core.js" session-consent.js
           grep -q "modules/capability-os.js" session-consent.js
-          echo 'Capability OS browser smoke passed'
+          echo 'Capability OS browser and runtime smoke passed'
