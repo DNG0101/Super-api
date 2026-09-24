@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict');
+const C=require('../modules/wireless-core.js');
+let n=0;const t=(name,fn)=>{fn();n++;console.log('ok',name)};
+t('families include major radios',()=>{for(const x of ['wifi','cellular','bluetooth','ble','nfc','gps','webrtc','uwb','zigbee','thread','lora','fm','am','sdr','wifi-direct'])assert.ok(C.family(x),x)});
+t('wifi raw scan correctly marked unavailable',()=>{const x=C.family('wifi');assert.equal(x.direct,false);assert.equal(x.raw,false)});
+t('network snapshot absent',()=>assert.deepEqual(C.networkSnapshot(null),{supported:false}));
+t('network snapshot values',()=>{const x=C.networkSnapshot({type:'wifi',effectiveType:'4g',downlink:10,rtt:50,saveData:false});assert.equal(x.type,'wifi');assert.equal(x.downlink,10)});
+t('ICE UDP host parse',()=>{const x=C.parseIceCandidate('candidate:1 1 udp 2122260223 192.168.1.10 50000 typ host');assert.equal(x.valid,true);assert.equal(x.protocol,'udp');assert.equal(x.type,'host');assert.equal(x.address,'192.168.1.10')});
+t('ICE relay TCP parse',()=>{const x=C.parseIceCandidate('candidate:2 1 tcp 100 203.0.113.2 443 typ relay tcptype passive raddr 10.0.0.2 rport 5555');assert.equal(x.type,'relay');assert.equal(x.tcpType,'passive');assert.equal(x.relatedPort,5555)});
+t('ICE invalid parse',()=>assert.equal(C.parseIceCandidate('not-candidate').valid,false));
+t('ICE redaction',()=>{const x=C.redactIce({address:'1.2.3.4',relatedAddress:'10.0.0.1',type:'host'});assert.equal(x.address,'[redacted]');assert.equal(x.relatedAddress,'[redacted]')});
+t('capability matrix',()=>{const x=C.capabilityMatrix({bluetooth:{},webrtc:{},serial:{}});assert.equal(x.bluetooth,true);assert.equal(x.nfc,false);assert.equal(x.serialBridge,true)});
+t('combination count',()=>{const x=C.combinations(C.FAMILIES,['detect','inspect','connect','read','write']);assert.equal(x.length,C.FAMILIES.length*5)});
+for(const f of C.FAMILIES)t(`family contract ${f.id}`,()=>{assert.equal(typeof f.id,'string');assert.equal(typeof f.label,'string');assert.equal(typeof f.web,'string');assert.equal(typeof f.note,'string');assert.equal(typeof f.direct,'boolean');assert.equal(typeof f.raw,'boolean')});
+console.log(`wireless matrix passed: ${n} groups; ${C.FAMILIES.length} families; ${C.combinations(C.FAMILIES,['detect','inspect','connect','read','write']).length} family/operation combinations`);
