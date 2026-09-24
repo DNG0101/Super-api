@@ -72,3 +72,24 @@ jobs:
               if not Path(path).exists(): missing.append(path)
           if missing: raise SystemExit('Missing SW core assets: '+', '.join(missing))
           print('Service worker core assets valid:', len(items))
+      - name: Capability OS headless browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/super-api-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:8765/ >/dev/null; then break; fi
+            sleep 0.5
+          done
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$CHROME" ]; then echo 'No Chromium-compatible browser on runner' >&2; exit 1; fi
+          timeout 30s "$CHROME" --headless --no-sandbox --disable-gpu --disable-background-networking --virtual-time-budget=3000 --dump-dom http://127.0.0.1:8765/tests/capability-os-browser-smoke.html >/tmp/capability-smoke.html
+          grep -q 'CAPABILITY_OS_BROWSER_PASS' /tmp/capability-smoke.html
+          curl -fsS http://127.0.0.1:8765/index.html >/tmp/super-api-index.html
+          grep -q 'id="allowRequests"' /tmp/super-api-index.html
+          grep -q 'session-consent.js' /tmp/super-api-index.html
+          grep -q "modules/capability-os-core.js" session-consent.js
+          grep -q "modules/capability-os.js" session-consent.js
+          echo 'Capability OS browser smoke passed'
