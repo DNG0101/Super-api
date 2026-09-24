@@ -23,6 +23,8 @@ jobs:
           find . -type f -name '*.js' -not -path './.git/*' -print0 | sort -z | xargs -0 -n1 node --check
       - name: Capability OS core matrix
         run: node tests/capability-os-core.test.cjs
+      - name: Capability OS architecture audit
+        run: node .github/scripts/capability-os-audit.mjs
       - name: Universal protocol test matrix
         run: node tests/universal-core.test.cjs
       - name: Network and signal test matrix
