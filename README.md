@@ -4,47 +4,54 @@ A GitHub-Pages-ready browser Web API capability lab with WebRTC peer control.
 
 ## Current scope
 
-The catalog is aligned to the MDN **Web APIs → Specifications** index checked on 24 September 2026. The build contains 148 specification-level Web API entries. The page feature-detects every catalog entry and exposes an executable browser test wherever a useful static-page test is possible.
+The catalog is aligned to the MDN **Web APIs → Specifications** index checked on 24 September 2026. It contains 148 specification-level Web API entries and feature-detects each entry in the current browser.
 
-Some APIs cannot be fully exercised by a static GitHub Pages site because they require a server counterpart, installed-PWA state, an identity/payment provider, DRM/key system, a push service, origin trials/browser flags, compatible external hardware, or a specific OS/browser. Those APIs remain in the catalog and are reported accurately as detected/not detected instead of pretending that a complete call succeeded.
+The project now uses two execution layers:
 
-See [`API_COVERAGE.md`](./API_COVERAGE.md) for the generated catalog snapshot.
+1. `app.js` — the primary runnable API test set and WebRTC peer console.
+2. `api-extensions.js` — completes previously detection-only APIs, provides live/configurable endpoint tests where a server counterpart is required, and adds supplemental practical browser calls such as OPFS, Cache Storage, SharedWorker and MediaDevices enumeration.
+
+The extension layer includes calls for Background Fetch, CSS Painting, Content Index, Encrypted Media Extensions/ClearKey, Fenced Frames, File and Directory Entries, Force Touch, Houdini, Invoker Commands, JS Self-Profiling, Launch Handler, Presentation, Private State Token surface construction, Push subscription state, Remote Playback, Server-Sent Events, Shared Storage, Topics, Text Fragments, Viewport Segments, Periodic Background Sync, Payment Handler state, legacy WebVR, WebSocket and WebTransport.
+
+APIs that fundamentally require a compatible remote service can be tested by entering an endpoint in the **Extended / server-backed API calls** panel. GitHub Pages itself cannot act as an SSE, WebSocket, WebTransport, TURN, push, DRM, identity-provider or payment-provider backend.
+
+See [`API_COVERAGE.md`](./API_COVERAGE.md) for the catalog snapshot.
 
 ## Peer model
 
-The same page can be opened on two devices:
+Open the same page on two devices:
 
 - **Controlled peer** — receives API test requests.
-- **Controller peer** — requests a test from the controlled peer.
+- **Controller peer** — requests tests from the controlled peer.
 
-The peers use a WebRTC DataChannel. Camera, microphone, and screen streams can also be sent over the paired WebRTC connection when the browser allows the requested capability.
+The peers communicate through a WebRTC DataChannel. Camera, microphone and screen tracks can also be sent over the paired WebRTC connection when the browser allows the requested capability.
+
+`peer-hook.js` extends the same WebRTC channel so the additional `ext:*` actions use the existing pairing rather than requiring a second connection.
 
 ### Pairing
 
 1. Open the page on both devices.
 2. Choose **Controlled peer** on one and **Controller peer** on the other.
-3. On one device press **Create offer**, then copy the JSON to the other device.
+3. Press **Create offer** on one peer and copy the JSON to the other.
 4. Paste it and press **Answer pasted offer**.
-5. Copy the generated answer back to the offer device.
+5. Copy the generated answer back to the offer peer.
 6. Paste it and press **Apply pasted answer**.
-7. On the controlled device enable **Authorize this paired peer to run all implemented API actions for this page session** once.
+7. On the controlled peer enable **Authorize this paired peer to run all implemented API actions for this page session** once.
 
-The app uses public STUN services for NAT discovery. A restrictive NAT/firewall can still require a TURN relay; a static GitHub Pages deployment cannot itself provide TURN.
+The project uses public STUN services for NAT discovery. Restrictive NAT/firewall combinations can still require TURN; a static GitHub Pages site cannot provide a TURN relay.
 
-## Single-session authorization model
+## One app-level authorization
 
-There is one app-level authorization for the complete page session.
+There is one application-level authorization for the whole page session.
 
-After the controlled peer enables that single authorization:
+After it is enabled:
 
-- every implemented peer API request is forwarded immediately by the application;
-- the application does not ask for a second per-action approval;
-- the authorization is not stored persistently and resets on reload or when the page switches to Controller mode;
-- a visible **session control ON** indicator remains on the controlled page.
+- all implemented primary and extension peer actions are forwarded without another app-level approval;
+- the authorization resets on reload or when the page switches to Controller mode;
+- the controlled page displays **session control ON**;
+- API errors are returned to the controller instead of being reported as fake successes.
 
-Browser and operating-system security rules still apply independently. Some Web APIs require their own permission prompt, device chooser, or fresh transient user activation. Examples include screen capture, file/device pickers, Bluetooth, USB, HID, Serial, contacts and similar powerful APIs. JavaScript cannot convert the app's one session authorization into a browser permission that the browser specification requires separately.
-
-If a remotely requested API is blocked for that reason, the error is returned to the controller instead of reporting a false success.
+This does **not** override the browser or operating system. Web-platform APIs may independently require a native permission prompt, device picker, or transient local user activation. Examples include screen capture, file/device pickers, Bluetooth, USB, HID, Serial, contacts and some clipboard/sensor operations. A normal webpage cannot merge those browser-enforced permissions into a single JavaScript permission.
 
 ## GitHub Pages
 
@@ -56,19 +63,21 @@ Expected URL:
 
 `https://dng0101.github.io/Super-api/`
 
-HTTPS is important because many powerful Web APIs are restricted to secure contexts.
+HTTPS is required by many powerful Web APIs.
 
 ## Files
 
 - `index.html` — UI and peer-control console
-- `catalog.js` — current Web API specification catalog and capability detectors
-- `app.js` — runnable API tests, peer transport and logging
-- `session-consent.js` — one-session authorization layer for all peer actions
-- `sw.js` — service worker/offline shell and background-sync test target
-- `manifest.webmanifest` — PWA integration surfaces
+- `catalog.js` — Web API catalog and feature detectors
+- `peer-hook.js` — routes extension actions over the existing WebRTC DataChannel
+- `app.js` — primary runnable API tests and peer transport
+- `session-consent.js` — single page-session authorization layer
+- `api-extensions.js` — additional API calls, endpoint-backed tests and supplemental capabilities
+- `sw.js` — offline shell/background test service worker
+- `manifest.webmanifest` — PWA metadata
 - `icon.svg` — PWA icon
-- `API_COVERAGE.md` — generated catalog snapshot
+- `API_COVERAGE.md` — catalog snapshot
 
 ## Testing notes
 
-Browser support differs substantially. For broad coverage, test current Chrome/Chromium on Android and desktop, plus Firefox and Safari where available. A red **not detected** result means the identifying surface is not exposed in that browser/context; it is not automatically an application bug.
+Browser support differs substantially. Test current Chrome/Chromium on Android and desktop, plus Firefox and Safari where available. A red **not detected** result means the identifying API surface is not exposed in that browser/context; it does not automatically indicate an application bug.
