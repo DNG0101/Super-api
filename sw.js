@@ -1,5 +1,5 @@
-const CACHE='super-api-peer-lab-v4';
-const CORE=['./','./index.html','./app.js','./catalog.js','./session-consent.js','./manifest.webmanifest','./icon.svg'];
+const CACHE='super-api-peer-lab-v5';
+const CORE=['./','./index.html','./app.js','./catalog.js','./peer-hook.js','./session-consent.js','./api-extensions.js','./manifest.webmanifest','./icon.svg'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).catch(()=>{}));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil((async()=>{for(const k of await caches.keys())if(k.startsWith('super-api-peer-lab-')&&k!==CACHE)await caches.delete(k);await self.clients.claim();})());});
 self.addEventListener('fetch',event=>{
