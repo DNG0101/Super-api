@@ -87,4 +87,23 @@
     consent.checked = false;
     updateState();
   });
+
+  // Load the cross-realm RPC layer without adding another app-level consent.
+  // The module still obeys the single allowRequests checkbox and browser/OS
+  // permission, secure-context, device-picker and trusted-user-activation rules.
+  if (!document.querySelector('script[data-super-api-realm-rpc]')) {
+    const script = document.createElement('script');
+    script.src = './modules/realm-rpc.js';
+    script.async = false;
+    script.dataset.superApiRealmRpc = 'true';
+    script.addEventListener('load', () => {
+      if (roleText && consent.checked) {
+        roleText.textContent = 'Single-session control is authorized. Window/Worker/Worklet realm RPC is ready where the browser permits it.';
+      }
+    });
+    script.addEventListener('error', () => {
+      console.error('Super API realm RPC module failed to load.');
+    });
+    document.head.appendChild(script);
+  }
 })();

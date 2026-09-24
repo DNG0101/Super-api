@@ -22,5 +22,27 @@ if (!scripts.includes('interface-harness.js')) fail('interface-harness.js not lo
 const rootJs = fs.readdirSync(root).filter(x => x.endsWith('.js') && x !== 'sw.js').sort();
 for (const f of rootJs) if (!scripts.includes(f)) fail(`root JS is not loaded by index.html: ${f}`);
 
-console.log(JSON.stringify({ scripts: scripts.length, rootJs: rootJs.length, sessionConsentCount: 1, interfaceHarness: true }, null, 2));
+const sessionConsent = read('session-consent.js');
+const realmRpcPath = 'modules/realm-rpc.js';
+const realmWorkerPath = 'workers/realm-rpc-sw.js';
+if (!sessionConsent.includes(`'./${realmRpcPath}'`) && !sessionConsent.includes(`"./${realmRpcPath}"`)) {
+  fail(`session-consent.js does not load ${realmRpcPath}`);
+}
+if (!fs.existsSync(path.join(root, realmRpcPath))) fail(`missing dynamic realm RPC module: ${realmRpcPath}`);
+const realmRpc = fs.existsSync(path.join(root, realmRpcPath)) ? read(realmRpcPath) : '';
+if (!realmRpc.includes(`'./${realmWorkerPath}'`) && !realmRpc.includes(`"./${realmWorkerPath}"`)) {
+  fail(`realm RPC module does not reference ${realmWorkerPath}`);
+}
+if (!fs.existsSync(path.join(root, realmWorkerPath))) fail(`missing realm service-worker broker: ${realmWorkerPath}`);
+if (!realmRpc.includes("action: 'ext:realm-rpc'")) fail('realm RPC peer action is not wired');
+if (!realmRpc.includes("$('#allowRequests')?.checked")) fail('realm RPC does not enforce the single session authorization');
+
+console.log(JSON.stringify({
+  scripts: scripts.length,
+  rootJs: rootJs.length,
+  sessionConsentCount: 1,
+  interfaceHarness: true,
+  realmRpc: true,
+  realmWorkerBroker: true
+}, null, 2));
 if (process.exitCode) process.exit(process.exitCode);
