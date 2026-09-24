@@ -13,8 +13,46 @@ const OPERATIONS=Object.freeze(['detect','inspect','read','write','call','constr
 
 const text=v=>String(v??'').trim();
 const arr=v=>Array.isArray(v)?v:(v==null?[]:[v]);
-const clone=v=>JSON.parse(JSON.stringify(v,(_k,x)=>typeof x==='bigint'?String(x):x));
 const idPart=v=>text(v).toLowerCase().replace(/[^a-z0-9._:-]+/g,'-').replace(/^-+|-+$/g,'');
+let commandSequence=0;
+
+function safeClone(value,{maxDepth=10,maxEntries=1000}={}){
+  const seen=new WeakSet();
+  const walk=(v,depth)=>{
+    if(depth>maxDepth)return '[MaxDepth]';
+    if(v===null||typeof v==='string'||typeof v==='boolean')return v;
+    if(typeof v==='number')return Number.isFinite(v)?v:String(v);
+    if(typeof v==='bigint')return String(v);
+    if(typeof v==='undefined')return null;
+    if(typeof v==='symbol')return String(v);
+    if(typeof v==='function')return `[Function ${v.name||'anonymous'}]`;
+    if(typeof v!=='object')return String(v);
+    if(seen.has(v))return '[Circular]';
+    seen.add(v);
+    if(v instanceof Date)return Number.isNaN(v.getTime())?'Invalid Date':v.toISOString();
+    if(Array.isArray(v)){
+      const out=v.slice(0,maxEntries).map(x=>walk(x,depth+1));
+      if(v.length>maxEntries)out.push(`[Truncated ${v.length-maxEntries} items]`);
+      return out;
+    }
+    const out={};let count=0;
+    for(const key of Object.keys(v)){
+      if(count++>=maxEntries){out.__truncated__=true;break;}
+      try{out[key]=walk(v[key],depth+1)}catch(e){out[key]=`[Unserializable: ${e?.message||e}]`;}
+    }
+    return out;
+  };
+  return walk(value,0);
+}
+const clone=v=>safeClone(v);
+
+function newCommandId(){
+  try{
+    if(globalThis.crypto?.randomUUID)return `cmd-${globalThis.crypto.randomUUID()}`;
+  }catch{}
+  commandSequence=(commandSequence+1)%Number.MAX_SAFE_INTEGER;
+  return `cmd-${Date.now().toString(36)}-${commandSequence.toString(36)}-${Math.random().toString(36).slice(2,10)}`;
+}
 function capabilityId(domain,name){return `${idPart(domain)}:${idPart(name)}`;}
 
 function normalizeCapability(input={}){
@@ -70,12 +108,13 @@ function validateCommand(command={}){
   if(!text(command.capabilityId))errors.push('capabilityId-required');
   if(!OPERATIONS.includes(text(command.operation)))errors.push('invalid-operation');
   if(command.args!=null&&!Array.isArray(command.args)&&typeof command.args!=='object')errors.push('args-must-be-array-or-object');
-  return {valid:!errors.length,errors,command:{id:text(command.id)||`cmd-${Date.now()}`,capabilityId:text(command.capabilityId),operation:text(command.operation),args:command.args??[],target:text(command.target),member:text(command.member),meta:clone(command.meta||{})}};
+  return {valid:!errors.length,errors,command:{id:text(command.id)||newCommandId(),capabilityId:text(command.capabilityId),operation:text(command.operation),args:command.args??[],target:text(command.target),member:text(command.member),meta:clone(command.meta||{})}};
 }
 
 function buildExecutionPlan(capability,command,context={}){
   const c=normalizeCapability(capability);const v=validateCommand(command);const p=evaluatePolicy(c,context);
   const reasons=[...v.errors,...p.reasons.filter(x=>x!=='browser-or-os-permission-may-be-required')];
+  if(v.valid&&c.operations.length&&!c.operations.includes(v.command.operation))reasons.push('operation-not-supported');
   return {ok:!reasons.length,capability:c,command:v.command,policy:p,reasons,steps:[
     'validate-command','resolve-capability','evaluate-session-policy',
     ...(c.dependencies.length?['resolve-dependencies']:[]),'resolve-adapter','execute','normalize-result','record-telemetry'
@@ -87,14 +126,19 @@ function resultEnvelope({commandId,capabilityId,operation,status='available',res
   return {version:1,time:new Date().toISOString(),commandId:text(commandId),capabilityId:text(capabilityId),operation:text(operation),status:s,ok:s==='available'&&!error,result:result==null?null:clone(result),error:error?text(error):null,durationMs:Number.isFinite(Number(durationMs))?Number(durationMs):null,adapter:text(adapter),realm:text(realm)};
 }
 
-function dependencyOrder(items=[]){
+function dependencyOrder(items=[],{strict=false}={}){
   const nodes=new Map(arr(items).map(x=>[x.id,{...x,dependencies:arr(x.dependencies)}]));
   const temporary=new Set(),permanent=new Set(),out=[];
   function visit(id,trail=[]){
     if(permanent.has(id))return;
     if(temporary.has(id))throw new Error(`dependency-cycle:${[...trail,id].join('>')}`);
-    const n=nodes.get(id);if(!n)return;
-    temporary.add(id);for(const d of n.dependencies)if(nodes.has(d))visit(d,[...trail,id]);temporary.delete(id);permanent.add(id);out.push(id);
+    const n=nodes.get(id);if(!n){if(strict)throw new Error(`dependency-missing:${id}`);return;}
+    temporary.add(id);
+    for(const d of n.dependencies){
+      if(nodes.has(d))visit(d,[...trail,id]);
+      else if(strict)throw new Error(`dependency-missing:${d}`);
+    }
+    temporary.delete(id);permanent.add(id);out.push(id);
   }
   for(const id of nodes.keys())visit(id);return out;
 }
@@ -108,5 +152,5 @@ function compatibilityMatrix(capabilities=[],environments=[]){
 
 function pairMatrix(valuesA=[],valuesB=[]){return arr(valuesA).flatMap(a=>arr(valuesB).map(b=>[a,b]));}
 
-return {DOMAINS,STATUSES,OPERATIONS,capabilityId,normalizeCapability,createRegistry,evaluatePolicy,validateCommand,buildExecutionPlan,resultEnvelope,dependencyOrder,compatibilityMatrix,pairMatrix};
+return {DOMAINS,STATUSES,OPERATIONS,capabilityId,normalizeCapability,createRegistry,evaluatePolicy,validateCommand,buildExecutionPlan,resultEnvelope,dependencyOrder,compatibilityMatrix,pairMatrix,safeClone,newCommandId};
 });
