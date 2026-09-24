@@ -3,7 +3,7 @@
 if(globalThis.SuperApiUCOSPackages)return;
 const Core=globalThis.SuperApiUCOSPackageCore,Storage=globalThis.SuperApiUCOSStorage,VFS=globalThis.SuperApiUCOSVFS;
 if(!Core){console.error('UCOS packages require package core');return}
-const NS='packages-v1',UCOS_VERSION='6.0.0';
+const NS='packages-v1',UCOS_VERSION='6.2.0';
 const enc=new TextEncoder();
 function stable(value){if(Array.isArray(value))return`[${value.map(stable).join(',')}]`;if(value&&typeof value==='object')return`{${Object.keys(value).sort().map(k=>`${JSON.stringify(k)}:${stable(value[k])}`).join(',')}}`;return JSON.stringify(value)}
 async function sha256(text){const d=await crypto.subtle.digest('SHA-256',enc.encode(text));return[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('')}
