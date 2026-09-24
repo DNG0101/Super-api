@@ -31,7 +31,7 @@
   loadModule('./modules/wireless-radio-core.js','data-super-api-wireless-core',()=>loadModule('./modules/wireless-radio.js','data-super-api-wireless-radio'));
   loadModule('./modules/universal-core.js','data-super-api-universal-core',()=>loadModule('./modules/universal-api.js','data-super-api-universal-api',()=>loadModule('./modules/universal-api-v2.js','data-super-api-universal-v2')));
 
-  // UCOS v5 boot order: compatibility/fabric -> lifecycle/security -> runtime/VFS/workflows -> shell -> integrations.
+  // UCOS v5 boot order: compatibility/fabric -> lifecycle/security/vault -> runtime/VFS/workflows -> shell -> integrations.
   // Existing Super API Lab remains the compatibility provider and no browser/OS permission boundary is bypassed.
   loadModule('./modules/capability-os-core.js','data-super-api-capability-core',()=>{
     loadModule('./modules/capability-os.js','data-super-api-capability-os',()=>{
@@ -41,16 +41,18 @@
             loadModule('./modules/ucos-lifecycle.js','data-super-api-ucos-lifecycle',()=>{
               loadModule('./modules/ucos-security-core.js','data-super-api-ucos-security-core',()=>{
                 loadModule('./modules/ucos-security.js','data-super-api-ucos-security',()=>{
-                  loadModule('./modules/ucos-secure-peer.js','data-super-api-ucos-secure-peer',()=>{
-                    loadModule('./modules/ucos-runtime-core.js','data-super-api-ucos-runtime-core',()=>{
-                      loadModule('./modules/ucos-vfs.js','data-super-api-ucos-vfs',()=>{
-                        loadModule('./modules/ucos-workflow-core.js','data-super-api-ucos-workflow-core',()=>{
-                          loadModule('./modules/ucos-workflows.js','data-super-api-ucos-workflows',()=>{
-                            loadModule('./modules/ucos-runtime.js','data-super-api-ucos-runtime',()=>{
-                              loadModule('./modules/ucos-shell.js','data-super-api-ucos-shell',()=>{
-                                loadModule('./modules/ucos-v4-integration.js','data-super-api-ucos-v4',()=>{
-                                  loadModule('./modules/ucos-update.js','data-super-api-ucos-update',()=>{
-                                    loadModule('./modules/ucos-v5-integration.js','data-super-api-ucos-v5');
+                  loadModule('./modules/ucos-vault.js','data-super-api-ucos-vault',()=>{
+                    loadModule('./modules/ucos-secure-peer.js','data-super-api-ucos-secure-peer',()=>{
+                      loadModule('./modules/ucos-runtime-core.js','data-super-api-ucos-runtime-core',()=>{
+                        loadModule('./modules/ucos-vfs.js','data-super-api-ucos-vfs',()=>{
+                          loadModule('./modules/ucos-workflow-core.js','data-super-api-ucos-workflow-core',()=>{
+                            loadModule('./modules/ucos-workflows.js','data-super-api-ucos-workflows',()=>{
+                              loadModule('./modules/ucos-runtime.js','data-super-api-ucos-runtime',()=>{
+                                loadModule('./modules/ucos-shell.js','data-super-api-ucos-shell',()=>{
+                                  loadModule('./modules/ucos-v4-integration.js','data-super-api-ucos-v4',()=>{
+                                    loadModule('./modules/ucos-update.js','data-super-api-ucos-update',()=>{
+                                      loadModule('./modules/ucos-v5-integration.js','data-super-api-ucos-v5');
+                                    });
                                   });
                                 });
                               });
