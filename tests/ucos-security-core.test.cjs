@@ -19,7 +19,10 @@ const replay=Sec.createReplayGuard({windowMs:60000});
 const envelope={peerId:'peer-a',nonce:'n-1',timestamp:Date.now()};assert(replay.accept(envelope).accepted);assert.equal(replay.accept(envelope).reason,'replay-detected');assert.equal(replay.accept({peerId:'peer-a',nonce:'old',timestamp:Date.now()-120000}).reason,'stale-message');
 console.log('UCOS anti-replay guard passed');
 
-const audit=Sec.createAuditLog({limit:3});audit.append('login',{authorization:'secret-value',nested:{password:'pw'},ok:true});audit.append('b',{});audit.append('c',{});audit.append('d',{});assert.equal(audit.size(),3);const rows=audit.query({limit:3});assert.equal(rows[2].data.authorization,'[REDACTED]');assert.equal(rows[2].data.nested.password,'[REDACTED]');
+const audit=Sec.createAuditLog({limit:3});
+const login=audit.append('login',{authorization:'secret-value',nested:{password:'pw'},ok:true});
+assert.equal(login.data.authorization,'[REDACTED]');assert.equal(login.data.nested.password,'[REDACTED]');
+audit.append('b',{});audit.append('c',{});audit.append('d',{});assert.equal(audit.size(),3);assert.deepEqual(audit.query({limit:3}).map(x=>x.type),['d','c','b']);
 console.log('UCOS bounded redacted audit log passed');
 
 const canonicalA=Sec.stable({b:2,a:1,n:{z:2,y:1}}),canonicalB=Sec.stable({n:{y:1,z:2},a:1,b:2});assert.equal(canonicalA,canonicalB);
