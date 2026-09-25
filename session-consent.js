@@ -39,7 +39,9 @@
                                       loadModule('./modules/ucos-v4-integration.js','data-super-api-ucos-v4',()=>{
                                         loadModule('./modules/ucos-update.js','data-super-api-ucos-update',()=>{
                                           loadModule('./modules/ucos-v5-integration.js','data-super-api-ucos-v5',()=>{
-                                            loadModule('./modules/ucos-v6-integration.js','data-super-api-ucos-v6');
+                                            loadModule('./modules/ucos-v6-integration.js','data-super-api-ucos-v6',()=>{
+                                              loadModule('./modules/ucos-functional-ui.js','data-super-api-ucos-functional');
+                                            });
                                           });
                                         });
                                       });
