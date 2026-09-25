@@ -12,5 +12,5 @@ async function health(){try{const{reg,result}=await call({type:'ucos:job-status'
 function on(type,fn){events.addEventListener(type,fn);return()=>events.removeEventListener(type,fn)}
 function loadStability(){if(globalThis.SuperApiUCOSStability||document.querySelector('script[data-super-api-ucos-stability]'))return;const s=document.createElement('script');s.src=new URL('ucos-stability.js',moduleBase).href;s.async=false;s.dataset.superApiUcosStability='true';s.addEventListener('error',()=>console.error('UCOS stability layer failed to load'),{once:true});document.head.appendChild(s)}
 if('serviceWorker'in navigator)navigator.serviceWorker.addEventListener('message',e=>{const m=e.data;if(m?.type!=='ucos:background-job'||!m.job?.id)return;const job=m.job;if(seen.has(job.id)){ack(job.id);return}seen.add(job.id);if(seen.size>500)seen.delete(seen.values().next().value);try{events.dispatchEvent(new CustomEvent('job',{detail:job}));events.dispatchEvent(new CustomEvent(String(job.type||'job'),{detail:job}))}finally{ack(job.id)}});
-const api=Object.freeze({queue,drain,ack,on,events,health});globalThis.SuperApiUCOSJobs=api;queueMicrotask(()=>{drain().catch(()=>{});loadStability()});
+const api=Object.freeze({queue,drain,ack,on,events,health});globalThis.SuperApiUCOSJobs=api;queueMicrotask(()=>drain().catch(()=>{}));queueMicrotask(loadStability);
 })();
