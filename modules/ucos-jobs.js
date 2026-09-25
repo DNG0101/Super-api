@@ -1,6 +1,7 @@
 (()=>{
 'use strict';
 if(globalThis.SuperApiUCOSJobs)return;
+const moduleBase=new URL('./',document.currentScript?.src||location.href);
 const SUPPORTED_JOB_TYPES=new Set(['notify-clients']),events=new EventTarget(),seen=new Set();
 async function worker(){if(!('serviceWorker'in navigator))throw new Error('service-worker-unavailable');const reg=await navigator.serviceWorker.ready,target=navigator.serviceWorker.controller||reg.active||reg.waiting;if(!target)throw new Error('service-worker-not-active');return{reg,target}}
 async function call(message,timeout=5000){const{reg,target}=await worker(),channel=new MessageChannel();const result=new Promise((resolve,reject)=>{let settled=false;const finish=(fn,value)=>{if(settled)return;settled=true;clearTimeout(timer);try{channel.port1.close()}catch{}fn(value)},timer=setTimeout(()=>finish(reject,new Error('service-worker-job-timeout')),timeout);channel.port1.onmessage=e=>e.data?.ok?finish(resolve,e.data):finish(reject,new Error(e.data?.error||'service-worker-job-failed'))});target.postMessage(message,[channel.port2]);return{reg,result}}
@@ -9,6 +10,7 @@ async function queue(job){if(!job||typeof job!=='object'||!SUPPORTED_JOB_TYPES.h
 async function drain(){const{result}=await call({type:'ucos:drain-jobs'});return result}
 async function health(){try{const{reg,result}=await call({type:'ucos:job-status'},3000);return{available:true,controlled:Boolean(navigator.serviceWorker.controller),backgroundSync:Boolean(reg.sync),supportedJobTypes:[...SUPPORTED_JOB_TYPES],...(await result)}}catch(e){return{available:false,error:e.message,supportedJobTypes:[...SUPPORTED_JOB_TYPES]}}}
 function on(type,fn){events.addEventListener(type,fn);return()=>events.removeEventListener(type,fn)}
+function loadStability(){if(globalThis.SuperApiUCOSStability||document.querySelector('script[data-super-api-ucos-stability]'))return;const s=document.createElement('script');s.src=new URL('ucos-stability.js',moduleBase).href;s.async=false;s.dataset.superApiUcosStability='true';s.addEventListener('error',()=>console.error('UCOS stability layer failed to load'),{once:true});document.head.appendChild(s)}
 if('serviceWorker'in navigator)navigator.serviceWorker.addEventListener('message',e=>{const m=e.data;if(m?.type!=='ucos:background-job'||!m.job?.id)return;const job=m.job;if(seen.has(job.id)){ack(job.id);return}seen.add(job.id);if(seen.size>500)seen.delete(seen.values().next().value);try{events.dispatchEvent(new CustomEvent('job',{detail:job}));events.dispatchEvent(new CustomEvent(String(job.type||'job'),{detail:job}))}finally{ack(job.id)}});
-const api=Object.freeze({queue,drain,ack,on,events,health});globalThis.SuperApiUCOSJobs=api;queueMicrotask(()=>drain().catch(()=>{}));
+const api=Object.freeze({queue,drain,ack,on,events,health});globalThis.SuperApiUCOSJobs=api;queueMicrotask(()=>drain().catch(()=>{}));queueMicrotask(loadStability);
 })();

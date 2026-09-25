@@ -1,0 +1,40 @@
+(()=>{
+'use strict';
+if(globalThis.SuperApiUCOSStability)return;
+const stats={startedAt:Date.now(),sweeps:0,openersChecked:0,deadOpenersSeen:0,routedClicks:0,orphanProcessesStopped:0,missingProcessesStarted:0,crashedSandboxesCleaned:0,mediaStreamsTracked:0,mediaTracksStopped:0,errors:0};
+let Runtime=null,UCOS=null,os=null,observer=null,shutdown=false,sweepQueued=false,sweepRunning=Promise.resolve(),bootTimer=null;
+const aborter=new AbortController();
+const trackedStreams=new Set();
+const activeStates=new Set(['starting','running','suspended']);
+function appIdOf(w){return String(w?.dataset?.appId||'')}
+function instanceOf(w){return String(w?.dataset?.instanceId||w?.dataset?.appId||'')}
+function processKey(p){return `${String(p?.appId||'')}::${String(p?.metadata?.windowInstance||'')}`}
+function windowKey(w){return `${appIdOf(w)}::${instanceOf(w)}`}
+function liveWindows(){return os?[...os.querySelectorAll('.ucos-window')].filter(w=>w.isConnected&&appIdOf(w)):[]}
+function systemProcesses(){return Runtime?.listProcesses?.().filter(p=>p.runtime==='system')||[]}
+function reportError(scope,error){stats.errors++;try{console.warn(`UCOS stability ${scope}`,error)}catch{}}
+function findWorkingOpener(id,exclude=null){if(!os||!id)return null;const escaped=globalThis.CSS?.escape?CSS.escape(id):String(id).replace(/["\\]/g,'\\$&');return[...os.querySelectorAll(`[data-open-app="${escaped}"]`)].find(el=>el!==exclude&&el.isConnected&&typeof el.onclick==='function')||null}
+function routeDeadOpener(el,event){const id=String(el?.dataset?.openApp||'');if(!id)return false;const working=findWorkingOpener(id,el);if(!working)return false;event?.preventDefault?.();event?.stopImmediatePropagation?.();stats.routedClicks++;queueMicrotask(()=>{try{working.click()}catch(e){reportError('routed-click',e)}});return true}
+function inspectOpeners(root=os){if(!root)return{checked:0,dead:0};let checked=0,dead=0;for(const el of root.querySelectorAll('[data-open-app]')){checked++;if(typeof el.onclick!=='function'){dead++;el.dataset.ucosStabilityDead='true'}else delete el.dataset.ucosStabilityDead}stats.openersChecked+=checked;stats.deadOpenersSeen+=dead;return{checked,dead}}
+async function reconcileProcesses(){if(!Runtime||!os)return{windows:0,stopped:0,started:0};const windows=liveWindows(),windowKeys=new Set(windows.map(windowKey)),procs=systemProcesses();let stopped=0,started=0;
+ for(const p of procs){const wi=String(p.metadata?.windowInstance||'');if(!wi)continue;if(!windowKeys.has(processKey(p))){try{if(await Runtime.stopProcess(p.pid,'orphan-window-cleanup')){stopped++;stats.orphanProcessesStopped++}}catch(e){reportError('stop-orphan',e)}}}
+ const refreshed=systemProcesses();const procKeys=new Set(refreshed.filter(p=>activeStates.has(p.state)).map(processKey));for(const w of windows){const key=windowKey(w);if(procKeys.has(key))continue;const appId=appIdOf(w);if(!Runtime.manifests?.has?.(appId))continue;try{const p=Runtime.startSystemProcess(appId,{windowInstance:instanceOf(w),stabilityManaged:true});procKeys.add(processKey(p));started++;stats.missingProcessesStarted++}catch(e){if(!e?.pid)reportError('start-missing-process',e)}}
+ return{windows:windows.length,stopped,started}}
+async function sweep(reason='mutation'){if(shutdown||!Runtime||!os)return null;stats.sweeps++;inspectOpeners(os);const process=await reconcileProcesses();return{reason,process,health:health()}}
+function scheduleSweep(reason='mutation'){if(shutdown||sweepQueued)return;sweepQueued=true;queueMicrotask(()=>{sweepQueued=false;sweepRunning=sweepRunning.then(()=>sweep(reason)).catch(e=>reportError('sweep',e))});}
+function cleanupCrashedSandbox(p){if(!p||p.state!=='crashed'||p.runtime!=='sandbox')return;const manifest=Runtime?.manifests?.get?.(p.appId);if(manifest?.lifecycle?.autoRestart)return;setTimeout(async()=>{if(shutdown)return;const current=Runtime.processes?.get?.(p.pid);if(!current||current.state!=='crashed')return;try{if(await Runtime.stopProcess(p.pid,'crash-resource-cleanup'))stats.crashedSandboxesCleaned++}catch(e){reportError('crash-cleanup',e)}},0)}
+function installMediaTracking(){const media=navigator.mediaDevices;if(!media?.getUserMedia||media.__ucosStabilityWrapped)return;const original=media.getUserMedia.bind(media);const wrapped=async constraints=>{const stream=await original(constraints);trackedStreams.add(stream);stats.mediaStreamsTracked++;const drop=()=>{if(stream.getTracks().every(t=>t.readyState==='ended'))trackedStreams.delete(stream)};for(const track of stream.getTracks())track.addEventListener?.('ended',drop,{once:true});return stream};try{Object.defineProperty(media,'getUserMedia',{value:wrapped,configurable:true,writable:true});Object.defineProperty(media,'__ucosStabilityWrapped',{value:true,configurable:true})}catch{}}
+function stopTrackedMedia(){for(const stream of [...trackedStreams]){for(const track of stream.getTracks?.()||[]){if(track.readyState!=='ended'){try{track.stop();stats.mediaTracksStopped++}catch{}}}trackedStreams.delete(stream)}}
+function health(){const windows=liveWindows(),windowKeys=new Set(windows.map(windowKey)),procs=systemProcesses(),orphans=procs.filter(p=>p.metadata?.windowInstance&&!windowKeys.has(processKey(p))),runtimeHealth=Runtime?.health?.()||null;return{version:'6.4',eventDriven:true,observerCount:observer?1:0,liveWindows:windows.length,systemProcesses:procs.length,orphanSystemProcesses:orphans.length,runtimeProcesses:runtimeHealth?.processes??null,runtimeResources:runtimeHealth?.resources??null,pendingPermissions:runtimeHealth?.pendingPermissions??null,trackedMediaStreams:trackedStreams.size,stats:{...stats}}}
+function shutdownNow(){if(shutdown)return;shutdown=true;if(bootTimer){clearTimeout(bootTimer);bootTimer=null}try{observer?.disconnect()}catch{}observer=null;try{aborter.abort()}catch{}stopTrackedMedia()}
+function install(){if(shutdown||globalThis.SuperApiUCOSStability)return false;Runtime=globalThis.SuperApiUCOSRuntime;UCOS=globalThis.SuperApiUCOS;os=document.querySelector('#ucosOS');if(!Runtime||!UCOS||!os)return false;
+ const clickHandler=e=>{const target=e.target?.closest?.('[data-open-app]');if(!target||!os.contains(target)||typeof target.onclick==='function')return;routeDeadOpener(target,e)};document.addEventListener('click',clickHandler,{capture:true,signal:aborter.signal});
+ observer=new MutationObserver(records=>{let relevant=false;for(const r of records){if(r.type==='childList'&&(r.addedNodes.length||r.removedNodes.length)){relevant=true;break}}if(relevant)scheduleSweep('dom-change')});observer.observe(os,{childList:true,subtree:true});
+ const offState=Runtime.events?.on?.('process-state',e=>{cleanupCrashedSandbox(e.detail);scheduleSweep('process-state')});const offStop=Runtime.events?.on?.('process-stop',()=>scheduleSweep('process-stop'));const offStart=Runtime.events?.on?.('process-start',()=>scheduleSweep('process-start'));
+ aborter.signal.addEventListener('abort',()=>{try{offState?.()}catch{}try{offStop?.()}catch{}try{offStart?.()}catch{}},{once:true});
+ window.addEventListener('pageshow',()=>scheduleSweep('pageshow'),{signal:aborter.signal});document.addEventListener('visibilitychange',()=>{if(!document.hidden)scheduleSweep('visible')},{signal:aborter.signal});window.addEventListener('pagehide',e=>{stopTrackedMedia();if(!e.persisted)shutdownNow()},{signal:aborter.signal});
+ installMediaTracking();inspectOpeners(os);scheduleSweep('startup');setTimeout(()=>scheduleSweep('startup-settle'),80);
+ const api=Object.freeze({version:'6.4',health,sweep:()=>sweep('manual'),inspectOpeners:()=>inspectOpeners(os),routeApp(id){const working=findWorkingOpener(String(id));if(!working)return false;working.click();return true},shutdown:shutdownNow});globalThis.SuperApiUCOSStability=api;try{Runtime.events?.emit?.('stability-ready',health())}catch{}return true}
+function boot(attempt=0){if(install())return;if(shutdown)return;if(attempt>=200){reportError('boot',new Error('UCOS runtime/shell did not become ready'));return}bootTimer=setTimeout(()=>boot(attempt+1),50)}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>boot(),{once:true});else boot();
+})();
