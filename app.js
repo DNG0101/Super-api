@@ -168,7 +168,7 @@ async function receiveRemoteRequest(m) {
 
 async function executeForPeer(m) {
   try {
-    const result = await runAction(m.action, true);
+    const result = await runAction(m.action, true, m.params ?? {});
     send({type:'result',action:m.action,id:m.id,result:serializable(result)});
   } catch(e) {
     send({type:'error',action:m.action,id:m.id,error:e?.message || String(e)});
@@ -243,8 +243,8 @@ action('environment-info','Coarse browser/page environment',async()=>({secureCon
 action('stop-media','Stop host media/wake lock',stopAllMedia);
 action('microphone','Microphone → paired peer',async()=>micStream());
 action('torch','Camera torch toggle ON',async()=>{const s=await cameraStream();const t=s.getVideoTracks()[0];const c=t.getCapabilities?.()||{};if(!c.torch)throw new Error('Torch is not exposed by this camera/browser.');await t.applyConstraints({advanced:[{torch:true}]});return {torch:true,label:t.label};});
-action('clipboard-write','Write test text to clipboard',async()=>{await navigator.clipboard.writeText(`Super API test ${new Date().toISOString()}`);return 'Clipboard test text written.';});
-action('file-save','Save a test file',async()=>{const text=`Super API test\n${new Date().toISOString()}\n`;if(window.showSaveFilePicker){const h=await showSaveFilePicker({suggestedName:'super-api-test.txt'});const w=await h.createWritable();await w.write(text);await w.close();return {saved:true,name:h.name};}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));a.download='super-api-test.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);return {downloadTriggered:true};});
+action('clipboard-write','Write test text to clipboard',async(args={})=>{await navigator.clipboard.writeText(String(args.text??`Super API test ${new Date().toISOString()}`));return 'Clipboard text written.';});
+action('file-save','Save a test file',async(args={})=>{const text=String(args.text??`Super API test\n${new Date().toISOString()}\n`),name=String(args.name||'super-api-test.txt');if(window.showSaveFilePicker){const h=await showSaveFilePicker({suggestedName:name});const w=await h.createWritable();await w.write(text);await w.close();return {saved:true,name:h.name};}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);return {downloadTriggered:true,name};});
 action('directory','Open directory picker',async()=>{if(!window.showDirectoryPicker)throw new Error('Directory picker not available.');const h=await showDirectoryPicker();return {name:h.name,kind:h.kind};});
 
 // API-specific tests.
@@ -313,7 +313,7 @@ action('midi','Web MIDI device snapshot',async()=>{const m=await navigator.reque
 action('navigation','Navigation API snapshot',async()=>{if(!globalThis.navigation)throw new Error('Navigation API unavailable.');return {currentKey:navigation.currentEntry?.key,currentURL:navigation.currentEntry?.url,entries:navigation.entries?.().length,canGoBack:navigation.canGoBack,canGoForward:navigation.canGoForward};});
 action('network','Network Information snapshot',async()=>{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;return c?{online:navigator.onLine,type:c.type,effectiveType:c.effectiveType,downlink:c.downlink,downlinkMax:c.downlinkMax,rtt:c.rtt,saveData:c.saveData}:{online:navigator.onLine,connectionAPI:false};});
 action('nfc','Start a short Web NFC scan',async()=>{if(!globalThis.NDEFReader)throw new Error('Web NFC unavailable.');const c=new AbortController();const r=new NDEFReader();await r.scan({signal:c.signal});setTimeout(()=>c.abort(),5000);return 'NFC scan started for up to 5 seconds.';});
-action('notifications','Notification test',async()=>{const p=await Notification.requestPermission();if(p!=='granted')return {permission:p};const r=await ensureSW();await r.showNotification('Super API Peer Lab',{body:'Notifications API test',tag:'super-api-test'});return {permission:p,shown:true};});
+action('notifications','Notification test',async(args={})=>{const p=await Notification.requestPermission();if(p!=='granted')return {permission:p};const r=await ensureSW();await r.showNotification(String(args.title||'Super API Peer Lab'),{body:String(args.body||'Notifications API test'),tag:'super-api-test'});return {permission:p,shown:true};});
 action('payment','Payment Request capability check',async()=>{if(!globalThis.PaymentRequest)throw new Error('Payment Request unavailable.');const pr=new PaymentRequest([{supportedMethods:'basic-card'}],{total:{label:'Demo only — no payment opened',amount:{currency:'USD',value:'1.00'}}});return {canMakePayment:await pr.canMakePayment().catch(()=>null),showCalled:false};});
 action('performance','Performance snapshot',async()=>{const nav=performance.getEntriesByType('navigation')[0];return {now:performance.now(),timeOrigin:performance.timeOrigin,navigation:nav?{type:nav.type,duration:nav.duration,domComplete:nav.domComplete,transferSize:nav.transferSize}:null,resources:performance.getEntriesByType('resource').length};});
 action('permissions','Permissions snapshot',async()=>{if(!navigator.permissions)throw new Error('Permissions API unavailable.');const out={};for(const name of ['geolocation','camera','microphone','notifications','clipboard-read','clipboard-write','midi']){try{out[name]=(await navigator.permissions.query({name})).state}catch{out[name]='query unsupported'}}return out;});
@@ -332,9 +332,9 @@ action('selection','Selection API test',async()=>{const e=document.createElement
 action('sensor-sample','Generic Sensor sample',async()=>{const classes=['Accelerometer','Gyroscope','Magnetometer','AbsoluteOrientationSensor','RelativeOrientationSensor','AmbientLightSensor'].filter(k=>globalThis[k]);if(!classes.length)throw new Error('No Generic Sensor class exposed.');const name=classes[0],S=globalThis[name],sensor=new S({frequency:5});try{return await timeout(new Promise((resolve,reject)=>{sensor.addEventListener('reading',()=>resolve({sensor:name,x:sensor.x,y:sensor.y,z:sensor.z,quaternion:sensor.quaternion,illuminance:sensor.illuminance,timestamp:sensor.timestamp}),{once:true});sensor.addEventListener('error',e=>reject(e.error||e),{once:true});sensor.start();}),4000,name);}finally{try{sensor.stop()}catch{}}});
 action('serial','Web Serial port picker',async()=>{const p=await navigator.serial.requestPort();return p.getInfo();});
 action('service-worker','Register service worker',async()=>{const r=await ensureSW();return {scope:r.scope,active:!!r.active,waiting:!!r.waiting,installing:!!r.installing};});
-action('share','Web Share sheet',async()=>{await navigator.share({title:'Super API Peer Lab',text:'Browser Web API test',url:location.href});return 'Share sheet completed/closed.';});
+action('share','Web Share sheet',async(args={})=>{await navigator.share({title:String(args.title||'Super API Peer Lab'),text:String(args.text||'Browser Web API test'),url:String(args.url||location.href)});return 'Share sheet completed/closed.';});
 action('speculation','Speculation Rules support',async()=>({supported:HTMLScriptElement.supports?.('speculationrules')===true}));
-action('speech','Speech synthesis test',async()=>{speechSynthesis.speak(new SpeechSynthesisUtterance('Super API browser test'));return {queued:true,voices:speechSynthesis.getVoices().length};});
+action('speech','Speech synthesis test',async(args={})=>{speechSynthesis.speak(new SpeechSynthesisUtterance(String(args.text||'Super API browser test')));return {queued:true,voices:speechSynthesis.getVoices().length};});
 action('storage-access','Storage Access API test',async()=>{const has=await document.hasStorageAccess?.().catch(()=>null);if(!document.requestStorageAccess)return {hasStorageAccess:has,requestAvailable:false};const result=await document.requestStorageAccess();return {hasStorageAccessBefore:has,granted:!!result};});
 action('storage-estimate','Storage quota estimate',async()=>{const e=await navigator.storage.estimate();return {usage:e.usage,quota:e.quota,usageDetails:e.usageDetails,persisted:await navigator.storage.persisted?.()};});
 action('streams','Streams pipeline test',async()=>{const rs=new ReadableStream({start(c){c.enqueue('super ');c.enqueue('api');c.close();}});const ts=new TransformStream({transform(x,c){c.enqueue(String(x).toUpperCase());}});return {text:await new Response(rs.pipeThrough(ts)).text()};});
@@ -349,7 +349,7 @@ action('url','URL parse/build test',async()=>{const u=new URL('./test?a=1',locat
 action('url-pattern','URLPattern match test',async()=>{if(!globalThis.URLPattern)throw new Error('URLPattern unavailable.');const p=new URLPattern({pathname:'/users/:id'});const r=p.exec('https://example.test/users/42');return {matched:!!r,id:r?.pathname?.groups?.id};});
 action('usb','WebUSB device picker',async()=>{const d=await navigator.usb.requestDevice({filters:[]});return {manufacturerName:d.manufacturerName,productName:d.productName,serialNumber:d.serialNumber,vendorId:d.vendorId,productId:d.productId,opened:d.opened};});
 action('user-preferences','User preference media queries',async()=>({dark:matchMedia('(prefers-color-scheme: dark)').matches,reducedMotion:matchMedia('(prefers-reduced-motion: reduce)').matches,contrastMore:matchMedia('(prefers-contrast: more)').matches,reducedData:matchMedia('(prefers-reduced-data: reduce)').matches,forcedColors:matchMedia('(forced-colors: active)').matches}));
-action('vibration','Vibration test',async()=>({accepted:navigator.vibrate([120,70,120])}));
+action('vibration','Vibration test',async(args={})=>({accepted:navigator.vibrate(args.pattern??[120,70,120])}));
 action('view-transition','View Transition API test',async()=>{if(!document.startViewTransition)throw new Error('View Transition unavailable.');const old=document.body.dataset.vt;const t=document.startViewTransition(()=>{document.body.dataset.vt=String(Date.now())});await t.finished;delete document.body.dataset.vt;if(old!==undefined)document.body.dataset.vt=old;return {finished:true};});
 action('virtual-keyboard','Virtual Keyboard info',async()=>{if(!navigator.virtualKeyboard)throw new Error('VirtualKeyboard unavailable.');return {overlaysContent:navigator.virtualKeyboard.overlaysContent,boundingRect:navigator.virtualKeyboard.boundingRect?.toJSON?.()||null};});
 action('visibility','Page Visibility state',async()=>({hidden:document.hidden,visibilityState:document.visibilityState,hasFocus:document.hasFocus()}));
@@ -376,15 +376,18 @@ action('xhr','XMLHttpRequest same-origin call',async()=>new Promise((resolve,rej
 
 async function ensureSW(){if(!('serviceWorker' in navigator))throw new Error('Service Worker unavailable.');return navigator.serviceWorker.register('./sw.js');}
 
-async function runAction(id, remote=false) {
+async function runAction(id, remote=false, args={}) {
   const a=ACTIONS[id]; if(!a) throw new Error(`No runnable test for ${id}.`);
   log(`${remote?'Remote-approved':'Local'} action: ${a.label}`);
-  const result=await a.fn();
+  const result=await a.fn(args ?? {});
   log(`${a.label} result:`,serializable(result));
   return result;
 }
 
 function detectAll(){return WEB_API_CATALOG.map(api=>{let supported=false;try{supported=!!api.test()}catch{}return{api,supported};});}
+function actionSupport(id){const actionId=String(id||''),matches=WEB_API_CATALOG.filter(api=>api.action===actionId);if(!ACTIONS[actionId])return{known:false,supported:false,catalogEntries:matches.length,names:matches.map(x=>x.name)};if(!matches.length)return{known:true,supported:true,catalogEntries:0,names:[]};let supported=false;for(const api of matches){try{if(api.test())supported=true}catch{}}return{known:true,supported,catalogEntries:matches.length,names:matches.map(x=>x.name)}}
+const legacyActionBridge=Object.freeze({version:'6.5',has:id=>Boolean(ACTIONS[String(id||'')]),get(id){const a=ACTIONS[String(id||'')];if(!a)return null;return{id:a.id,label:a.label,sensitive:SENSITIVE.has(a.id),...actionSupport(a.id)}},list(){return Object.values(ACTIONS).map(a=>({id:a.id,label:a.label,sensitive:SENSITIVE.has(a.id),...actionSupport(a.id)}))},support:actionSupport,async execute(id,args={}){const actionId=String(id||'');if(!ACTIONS[actionId])throw new Error(`No runnable test for ${actionId}.`);return serializable(await runAction(actionId,false,args??{}))},stopMedia:stopAllMedia});
+globalThis.SuperApiLegacyActions=legacyActionBridge;document.dispatchEvent(new CustomEvent('super-api-actions-ready',{detail:{count:Object.keys(ACTIONS).length}}));
 
 function populateActions(){
   const select=$('#remoteAction');select.innerHTML='';
