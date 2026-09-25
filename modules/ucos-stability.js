@@ -6,7 +6,6 @@ let Runtime=null,UCOS=null,os=null,observer=null,shutdown=false,sweepQueued=fals
 const aborter=new AbortController();
 const trackedStreams=new Set();
 const activeStates=new Set(['starting','running','suspended']);
-const safeError=e=>e?.message||String(e);
 function appIdOf(w){return String(w?.dataset?.appId||'')}
 function instanceOf(w){return String(w?.dataset?.instanceId||w?.dataset?.appId||'')}
 function processKey(p){return `${String(p?.appId||'')}::${String(p?.metadata?.windowInstance||'')}`}
@@ -33,7 +32,7 @@ function install(){if(shutdown||globalThis.SuperApiUCOSStability)return false;Ru
  observer=new MutationObserver(records=>{let relevant=false;for(const r of records){if(r.type==='childList'&&(r.addedNodes.length||r.removedNodes.length)){relevant=true;break}}if(relevant)scheduleSweep('dom-change')});observer.observe(os,{childList:true,subtree:true});
  const offState=Runtime.events?.on?.('process-state',e=>{cleanupCrashedSandbox(e.detail);scheduleSweep('process-state')});const offStop=Runtime.events?.on?.('process-stop',()=>scheduleSweep('process-stop'));const offStart=Runtime.events?.on?.('process-start',()=>scheduleSweep('process-start'));
  aborter.signal.addEventListener('abort',()=>{try{offState?.()}catch{}try{offStop?.()}catch{}try{offStart?.()}catch{}},{once:true});
- window.addEventListener('pageshow',()=>scheduleSweep('pageshow'),{signal:aborter.signal});document.addEventListener('visibilitychange',()=>{if(!document.hidden)scheduleSweep('visible')},{signal:aborter.signal});window.addEventListener('pagehide',shutdownNow,{once:true,signal:aborter.signal});
+ window.addEventListener('pageshow',()=>scheduleSweep('pageshow'),{signal:aborter.signal});document.addEventListener('visibilitychange',()=>{if(!document.hidden)scheduleSweep('visible')},{signal:aborter.signal});window.addEventListener('pagehide',e=>{stopTrackedMedia();if(!e.persisted)shutdownNow()},{signal:aborter.signal});
  installMediaTracking();inspectOpeners(os);scheduleSweep('startup');setTimeout(()=>scheduleSweep('startup-settle'),80);
  const api=Object.freeze({version:'6.4',health,sweep:()=>sweep('manual'),inspectOpeners:()=>inspectOpeners(os),routeApp(id){const working=findWorkingOpener(String(id));if(!working)return false;working.click();return true},shutdown:shutdownNow});globalThis.SuperApiUCOSStability=api;try{Runtime.events?.emit?.('stability-ready',health())}catch{}return true}
 function boot(attempt=0){if(install())return;if(shutdown)return;if(attempt>=200){reportError('boot',new Error('UCOS runtime/shell did not become ready'));return}bootTimer=setTimeout(()=>boot(attempt+1),50)}
