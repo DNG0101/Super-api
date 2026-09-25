@@ -12,19 +12,29 @@ jobs:
         with:
           node-version: 22
       - name: Stability syntax
-        run: node --check modules/ucos-stability.js
+        run: |
+          node --check modules/ucos-stability.js
+          node --check tests/interaction-leak-cdp.mjs
       - name: Interaction and runtime leak browser smoke
         shell: bash
         run: |
           set -euo pipefail
           python3 -m http.server 8766 --bind 127.0.0.1 >/tmp/ucos-stability-http.log 2>&1 &
           SERVER_PID=$!
-          cleanup(){ kill "$SERVER_PID" 2>/dev/null || true; [ -n "${PROFILE:-}" ] && rm -rf "$PROFILE" 2>/dev/null || true; }
+          CHROME_PID=''
+          PROFILE=''
+          cleanup(){
+            [ -n "$CHROME_PID" ] && kill "$CHROME_PID" 2>/dev/null || true
+            kill "$SERVER_PID" 2>/dev/null || true
+            [ -n "$PROFILE" ] && rm -rf "$PROFILE" 2>/dev/null || true
+          }
           trap cleanup EXIT
           for i in {1..30}; do curl -fsS http://127.0.0.1:8766/ >/dev/null && break || sleep 0.5; done
+          curl -fsS http://127.0.0.1:8766/ >/dev/null
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
           [ -n "$CHROME" ] || { echo 'Chromium-compatible browser not found' >&2; exit 1; }
           PROFILE="$(mktemp -d)"
-          timeout 75s "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --disable-background-networking --no-first-run --user-data-dir="$PROFILE" --virtual-time-budget=26000 --dump-dom http://127.0.0.1:8766/tests/ucos-interaction-leak-smoke.html >/tmp/ucos-interaction-leak.html 2>/tmp/ucos-interaction-leak.err || { tail -n 120 /tmp/ucos-interaction-leak.err >&2; exit 1; }
-          grep -q 'UCOS_INTERACTION_LEAK_PASS' /tmp/ucos-interaction-leak.html || { tail -n 160 /tmp/ucos-interaction-leak.html >&2; exit 1; }
-          echo 'UCOS interaction churn and leak smoke passed'
+          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --disable-background-networking --no-first-run --remote-debugging-address=127.0.0.1 --remote-debugging-port=9223 --user-data-dir="$PROFILE" about:blank >/tmp/ucos-interaction-chrome.out 2>/tmp/ucos-interaction-chrome.err &
+          CHROME_PID=$!
+          node tests/interaction-leak-cdp.mjs http://127.0.0.1:8766/index.html 9223
+          echo 'UCOS interaction churn and runtime leak gate passed'
