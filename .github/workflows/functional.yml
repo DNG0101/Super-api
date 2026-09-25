@@ -1,0 +1,42 @@
+name: UCOS Functional Execution Gate
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  functional:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Functional syntax
+        run: |
+          node --check app.js
+          node --check modules/ucos-fabric.js
+          node --check modules/ucos-functional-ui.js
+          node --check tests/functional-cdp.mjs
+      - name: UCOS functional browser gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8767 --bind 127.0.0.1 >/tmp/ucos-functional-http.log 2>&1 &
+          SERVER_PID=$!
+          CHROME_PID=''
+          PROFILE=''
+          cleanup(){
+            [ -n "$CHROME_PID" ] && kill "$CHROME_PID" 2>/dev/null || true
+            kill "$SERVER_PID" 2>/dev/null || true
+            [ -n "$PROFILE" ] && rm -rf "$PROFILE" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for i in {1..30}; do curl -fsS http://127.0.0.1:8767/ >/dev/null && break || sleep 0.5; done
+          curl -fsS http://127.0.0.1:8767/ >/dev/null
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          [ -n "$CHROME" ] || { echo 'Chromium-compatible browser not found' >&2; exit 1; }
+          PROFILE="$(mktemp -d)"
+          "$CHROME" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --disable-background-networking --no-first-run --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224 --user-data-dir="$PROFILE" about:blank >/tmp/ucos-functional-chrome.out 2>/tmp/ucos-functional-chrome.err &
+          CHROME_PID=$!
+          node tests/functional-cdp.mjs http://127.0.0.1:8767/index.html 9224
+          echo 'UCOS functional execution gate passed'
